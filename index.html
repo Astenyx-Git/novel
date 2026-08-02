@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub Pages 纯免费聊天室</title>
+    <!-- 引入 Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 20px; }
+        #chat-box { height: 400px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
+        .message { margin-bottom: 8px; }
+        .message span { font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+
+    <h2>我的云端聊天室</h2>
+    <div id="chat-box"></div>
+    
+    <input type="text" id="username" placeholder="你的名字" style="width: 20%;" />
+    <input type="text" id="message-input" placeholder="输入聊天内容..." style="width: 65%;" />
+    <button onclick="sendMessage()">发送</button>
+
+    <script>
+        // 替换为你自己的 Supabase URL 和 Anon Key
+        const SUPABASE_URL = '你的Supabase_URL';
+        const SUPABASE_ANON_KEY = '你的Supabase_ANON_KEY';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const chatBox = document.getElementById('chat-box');
+
+        // 1. 刚打开网页时，加载历史消息（最近 50 条）
+        async function loadMessages() {
+            const { data, error } = await supabaseClient
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: true })
+                .limit(50);
+            
+            if (error) {
+                console.error('加载失败', error);
+                return;
+            }
+            chatBox.innerHTML = '';
+            data.forEach(msg => appendMessage(msg));
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // 2. 实时监听数据库的新增消息
+        supabaseClient
+            .channel('public:messages')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                appendMessage(payload.new);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            })
+            .subscribe();
+
+        // 3. 发送消息函数
+        async function sendMessage() {
+            const username = document.getElementById('username').value || '匿名';
+            const content = document.getElementById('message-input').value;
+            if (!content.trim()) return;
+
+            const { error } = await supabaseClient
+                .from('messages')
+                .insert([{ user_name: username, content: content }]);
+
+            if (!error) {
+                document.getElementById('message-input').value = ''; // 清空输入框
+            } else {
+                alert('发送失败，请检查控制台');
+            }
+        }
+
+        function appendMessage(msg) {
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.innerHTML = `<span>${escapeHtml(msg.user_name)}:</span> ${escapeHtml(msg.content)}`;
+            chatBox.appendChild(div);
+        }
+
+        // 简单的防 XSS 注入转义
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        loadMessages();
+    </script>
+</body>
+</html>
