@@ -2,11 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>GitHub Pages 纯免费聊天室</title>
-    <!-- 引入 Supabase JS SDK -->
+    <title>加密创作讨论空间</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 20px; }
+        .hidden { display: none !important; }
         #chat-box { height: 400px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
         .message { margin-bottom: 8px; }
         .message span { font-weight: bold; color: #007bff; }
@@ -14,22 +14,101 @@
 </head>
 <body>
 
-    <h2>我的云端聊天室</h2>
-    <div id="chat-box"></div>
-    
-    <input type="text" id="username" placeholder="你的名字" style="width: 20%;" />
-    <input type="text" id="message-input" placeholder="输入聊天内容..." style="width: 65%;" />
-    <button onclick="sendMessage()">发送</button>
+    <!-- 1. 登录视图 -->
+    <div id="auth-section">
+        <h2>聊天室登录</h2>
+        <input type="email" id="email-input" placeholder="输入所有者分配的邮箱" style="width: 40%;" /><br><br>
+        <input type="password" id="password-input" placeholder="输入密码" style="width: 40%;" /><br><br>
+        <button onclick="login()">登录</button>
+        <p id="auth-error" style="color: red;"></p>
+    </div>
 
+    <!-- 2. 聊天室视图（默认隐藏，登录后显示） -->
+    <div id="chat-section" class="hidden">
+        <h2>小说创作空间 <button onclick="logout()" style="float: right; font-size: 12px;">退出登录</button></h2>
+        <div id="chat-box"></div>
+        
+        <input type="text" id="message-input" placeholder="输入聊天内容..." style="width: 75%;" />
+        <button onclick="sendMessage()">发送</button>
+    </div>
+    
+    <!-- 在退出登录按钮旁边或下方，加一个修改密码的小区域 -->
+    <div style="margin-top: 15px; padding: 10px; border: 1px dashed #ccc;">
+        <input type="password" id="new-password-input" placeholder="输入新密码" style="width: 45%;" />
+        <button onclick="updatePassword()">修改我的密码</button>
+    </div>
+    
     <script>
-        // 替换为你自己的 Supabase URL 和 Anon Key
         const SUPABASE_URL = 'https://pctuwkfztzmhlgjkeuvl.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_RVSfnyjPqLw5fn30Tlm3ig_XIgJipuG';
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         const chatBox = document.getElementById('chat-box');
 
-        // 1. 刚打开网页时，加载历史消息（最近 50 条）
+        // 检查当前是否已经登录
+        checkUser();
+
+        async function checkUser() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                showChatRoom(session.user);
+            }
+        }
+
+        // 登录函数
+        async function login() {
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
+            const errorTag = document.getElementById('auth-error');
+
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
+
+            if (error) {
+                errorTag.innerText = '登录失败: ' + error.message;
+            } else {
+                showChatRoom(data.user);
+            }
+        }
+
+        // 修改密码函数
+        async function updatePassword() {
+            const newPassword = document.getElementById('new-password-input').value;
+            if (!newPassword || newPassword.length < 6) {
+                alert('密码长度不能少于 6 位！');
+                return;
+            }
+
+            // 调用 Supabase 的 updateUser API 修改当前登录用户的密码
+            const { data, error } = await supabaseClient.auth.updateUser({
+                password: newPassword
+            });
+    
+            if (error) {
+                alert('修改密码失败: ' + error.message);
+            } else {
+                alert('密码修改成功！下次请使用新密码登录。');
+                document.getElementById('new-password-input').value = '';
+            }
+        }
+
+        // 退出登录
+        async function logout() {
+            await supabaseClient.auth.signOut();
+            document.getElementById('chat-section').classList.add('hidden');
+            document.getElementById('auth-section').classList.remove('hidden');
+        }
+
+        function showChatRoom(user) {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('chat-section').classList.remove('hidden');
+            loadMessages();
+            subscribeMessages();
+        }
+
+        // 加载历史消息
         async function loadMessages() {
             const { data, error } = await supabaseClient
                 .from('messages')
@@ -37,38 +116,40 @@
                 .order('created_at', { ascending: true })
                 .limit(50);
             
-            if (error) {
-                console.error('加载失败', error);
-                return;
+            if (!error) {
+                chatBox.innerHTML = '';
+                data.forEach(msg => appendMessage(msg));
+                chatBox.scrollTop = chatBox.scrollHeight;
             }
-            chatBox.innerHTML = '';
-            data.forEach(msg => appendMessage(msg));
-            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // 2. 实时监听数据库的新增消息
-        supabaseClient
-            .channel('public:messages')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-                appendMessage(payload.new);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            })
-            .subscribe();
+        // 实时监听
+        function subscribeMessages() {
+            supabaseClient
+                .channel('public:messages')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                    appendMessage(payload.new);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                })
+                .subscribe();
+        }
 
-        // 3. 发送消息函数
+        // 发送消息（自动绑定当前登录用户的邮箱前缀作为昵称）
         async function sendMessage() {
-            const username = document.getElementById('username').value || '匿名';
             const content = document.getElementById('message-input').value;
             if (!content.trim()) return;
+
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            const username = user.email.split('@')[0]; // 取邮箱前缀作为显示名
 
             const { error } = await supabaseClient
                 .from('messages')
                 .insert([{ user_name: username, content: content }]);
 
             if (!error) {
-                document.getElementById('message-input').value = ''; // 清空输入框
+                document.getElementById('message-input').value = '';
             } else {
-                alert('发送失败，请检查控制台');
+                alert('发送失败: ' + error.message);
             }
         }
 
@@ -79,12 +160,9 @@
             chatBox.appendChild(div);
         }
 
-        // 简单的防 XSS 注入转义
         function escapeHtml(text) {
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
-
-        loadMessages();
     </script>
 </body>
 </html>
