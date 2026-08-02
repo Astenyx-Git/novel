@@ -9,10 +9,10 @@
         :root {
             --bg-color: #ffffff;
             --text-color: #333333;
-            --container-bg: #f9f9f9;
+            --container-bg: rgba(249, 249, 249, 0.95);
             --border-color: #ccc;
-            --room-bg: #eee;
-            --room-hover: #ddd;
+            --room-bg: rgba(238, 238, 238, 0.95);
+            --room-hover: rgba(221, 221, 221, 0.95);
             --room-active: #007bff;
             --room-active-text: #ffffff;
             --meta-color: #666;
@@ -25,10 +25,10 @@
         [data-theme="dark"] {
             --bg-color: #1a1a1a;
             --text-color: #e0e0e0;
-            --container-bg: #242424;
+            --container-bg: rgba(36, 36, 36, 0.95);
             --border-color: #444;
-            --room-bg: #2a2a2a;
-            --room-hover: #3a3a3a;
+            --room-bg: rgba(42, 42, 42, 0.95);
+            --room-hover: rgba(58, 58, 58, 0.95);
             --room-active: #0d6efd;
             --room-active-text: #ffffff;
             --meta-color: #aaa;
@@ -69,7 +69,7 @@
         #room-list { width: 30%; border-right: 1px solid var(--border-color); padding-right: 10px; }
         #chat-main { width: 70%; position: relative; }
         
-        .room-item { padding: 8px; margin-bottom: 5px; background: var(--room-bg); cursor: pointer; border-radius: 4px; }
+        .room-item { padding: 8px; margin-bottom: 5px; background: var(--room-bg); cursor: pointer; border-radius: 4px; backdrop-filter: blur(2px); }
         .room-item:hover { background: var(--room-hover); }
         .room-item.active { background: var(--room-active); color: var(--room-active-text); }
         
@@ -81,6 +81,7 @@
             margin-bottom: 10px; 
             background: var(--container-bg); 
             border-radius: 4px;
+            backdrop-filter: blur(2px);
         }
         #chat-box::-webkit-scrollbar { width: 8px; }
         #chat-box::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
@@ -101,6 +102,7 @@
             justify-content: space-between;
             align-items: center;
             border-radius: 0 4px 4px 0;
+            backdrop-filter: blur(2px);
         }
 
         input[type="text"], input[type="password"], input[type="email"], textarea, select {
@@ -128,6 +130,7 @@
             display: none;
             border-radius: 4px;
             z-index: 10;
+            backdrop-filter: blur(2px);
         }
         .mention-option { padding: 6px 10px; cursor: pointer; font-size: 13px; }
         .mention-option:hover { background: var(--room-hover); }
@@ -248,6 +251,7 @@
             border-radius: 6px;
             padding: 15px;
             margin-top: 10px;
+            backdrop-filter: blur(2px);
         }
         .character-card-grid {
             display: grid;
@@ -293,7 +297,7 @@
 <body>
 
     <div id="auth-section">
-        <h2>空间登录 <button onclick="toggleTheme()" style="float: right; font-size: 12px; padding: 4px 8px;">🌓 切换主题</button></h2>
+        <h2>创作空间 <button onclick="toggleTheme()" style="float: right; font-size: 12px; padding: 4px 8px;">🌓 切换主题</button></h2>
         <input type="email" id="email-input" placeholder="输入所有者分配的邮箱" style="width: 100%; max-width: 400px;" /><br><br>
         <input type="password" id="password-input" placeholder="输入密码" style="width: 100%; max-width: 400px;" /><br><br>
         <button onclick="login()">登录</button>
