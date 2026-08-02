@@ -135,19 +135,19 @@
 
         .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 
-        /* ==================== 纵向圆形悬浮按钮区（响应式设计） ==================== */
+        /* ==================== 纵向圆形悬浮按钮区 (缩小至约 45%) ==================== */
         .side-action-bar {
             position: absolute;
-            right: -55px;
+            right: -35px;
             top: 0;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
             z-index: 5;
         }
         .circle-btn {
-            width: 42px;
-            height: 42px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background: var(--room-active);
             color: #ffffff;
@@ -156,25 +156,24 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             transition: transform 0.2s, background-color 0.2s;
-            font-size: 16px;
+            font-size: 11px;
             position: relative;
         }
         .circle-btn:hover {
             transform: scale(1.1);
             filter: brightness(1.1);
         }
-        /* 按钮小提示气泡 */
         .circle-btn::after {
             content: attr(data-tooltip);
             position: absolute;
-            right: 50px;
+            right: 32px;
             background: rgba(0,0,0,0.8);
             color: #fff;
-            padding: 3px 8px;
-            font-size: 11px;
-            border-radius: 4px;
+            padding: 3px 6px;
+            font-size: 10px;
+            border-radius: 3px;
             white-space: nowrap;
             opacity: 0;
             pointer-events: none;
@@ -182,7 +181,7 @@
         }
         .circle-btn:hover::after { opacity: 1; }
 
-        /* ==================== 侧边抽屉（世界观与角色设定面板） ==================== */
+        /* ==================== 侧边抽屉面板 ==================== */
         .setting-drawer {
             position: fixed;
             top: 0; right: -100%;
@@ -203,7 +202,7 @@
         .drawer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
         .drawer-body { flex: 1; overflow-y: auto; padding-right: 5px; }
 
-        /* 浏览器式标签页设计 (Tabs) */
+        /* 浏览器式标签页设计 */
         .browser-tabs {
             display: flex;
             background: var(--room-bg);
@@ -243,7 +242,7 @@
             color: var(--room-active);
         }
 
-        /* 结构化角色卡片样式 */
+        /* 结构化角色卡片 */
         .character-card {
             background: var(--container-bg);
             border: 1px solid var(--border-color);
@@ -259,20 +258,21 @@
         }
         .character-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 
-        /* 移动端特殊优化媒体查询 */
+        /* ==================== 响应式媒体查询（完美适配移动端与桌面端） ==================== */
         @media (max-width: 768px) {
-            body { margin: 5px; padding: 0 10px; }
+            body { max-width: 100%; margin: 10px; padding: 0 10px; }
             .layout { flex-direction: column; }
             #room-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; }
             #chat-main { width: 100%; }
-            /* 移动端将右侧圆形按钮移至顶部浮动或横排，避免遮挡内容 */
+            /* 移动端将右侧圆形悬浮按钮移至聊天框右上角或横排，防止挤压文本 */
             .side-action-bar {
-                position: static;
+                position: absolute;
+                right: 5px;
+                top: -35px;
                 flex-direction: row;
-                justify-content: flex-end;
-                margin-bottom: 10px;
+                gap: 6px;
             }
-            .circle-btn::after { display: none; } /* 移动端隐藏悬停提示 */
+            .circle-btn::after { display: none; }
             .setting-drawer { width: 100%; }
         }
     </style>
@@ -307,7 +307,7 @@
 
             <!-- 右侧：聊天及输入模块 -->
             <div id="chat-main">
-                <!-- 纵向悬浮圆形按钮区 (世界观 & 角色卡) -->
+                <!-- 纵向微型悬浮按钮区 -->
                 <div class="side-action-bar">
                     <button class="circle-btn" data-tooltip="世界观设定" onclick="openWorldDrawer()">🌍</button>
                     <button class="circle-btn" data-tooltip="角色设定" onclick="openCharDrawer()">👥</button>
@@ -367,7 +367,7 @@
         </div>
     </div>
 
-    <!-- ==================== 抽屉2：角色设定面板 (浏览器标签页样式) ==================== -->
+    <!-- ==================== 抽屉2：角色设定面板 (含身高体重等参数) ==================== -->
     <div id="char-drawer" class="setting-drawer">
         <div class="drawer-header">
             <h3>👥 角色档案库</h3>
@@ -376,13 +376,10 @@
         <div class="drawer-body">
             <!-- 浏览器式标签栏 -->
             <div class="browser-tabs" id="char-tabs-container">
-                <!-- 动态生成标签 -->
                 <button class="browser-tab-add" onclick="addNewCharacterCard()">＋ 新增角色</button>
             </div>
             <!-- 标签对应的内容面板 -->
-            <div id="char-content-container" style="margin-top: 15px;">
-                <!-- 动态渲染当前选中角色的结构化卡片 -->
-            </div>
+            <div id="char-content-container" style="margin-top: 15px;"></div>
         </div>
     </div>
 
@@ -398,7 +395,6 @@
         let roomMembers = []; 
         let replyingToMessage = null; 
 
-        // 设定中心数据状态
         let charactersData = [];
         let activeCharIndex = 0;
 
@@ -406,7 +402,7 @@
         initTheme();
         initBackground();
 
-        /* ==================== 1. 主题切换与背景模块 ==================== */
+        /* ==================== 主题与背景模块 ==================== */
         function initTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
@@ -477,7 +473,7 @@
             alert('已清除本地背景图！');
         }
 
-        /* ==================== 2. 用户认证与基础逻辑 ==================== */
+        /* ==================== 认证与基础逻辑 ==================== */
         async function checkUser() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) { showChatRoom(); }
@@ -510,7 +506,7 @@
             loadCharactersSettings();
         }
 
-        /* ==================== 3. 房间加载与切换模块 ==================== */
+        /* ==================== 房间与消息模块 ==================== */
         async function loadRooms() {
             const { data: rooms, error } = await supabaseClient.from('rooms').select('*').order('id');
             if (error) { console.error(error); return; }
@@ -551,7 +547,6 @@
             subscribeMessages(room.id);
         }
 
-        /* ==================== 4. 消息加载与实时同步模块 ==================== */
         async function loadMessages(roomId, isInitial = false) {
             const chatBox = document.getElementById('chat-box');
             
@@ -629,7 +624,7 @@
                 .subscribe();
         }
 
-        /* ==================== 5. 回复与 @ 模块 ==================== */
+        /* ==================== 互动与消息发送模块 ==================== */
         function setReply(msg) {
             replyingToMessage = msg;
             const previewBar = document.getElementById('reply-preview-bar');
@@ -715,7 +710,7 @@
             }
         }
 
-        /* ==================== 6. 创作辅助抽屉与云端设定逻辑 ==================== */
+        /* ==================== 创作辅助抽屉与云端设定逻辑 ==================== */
         function openWorldDrawer() {
             document.getElementById('world-drawer').classList.add('open');
         }
@@ -727,7 +722,6 @@
             document.getElementById('char-drawer').classList.remove('open');
         }
 
-        // 世界观云端交互
         async function loadWorldSettings() {
             const { data, error } = await supabaseClient.from('novel_settings').select('*').eq('id', 1).single();
             if (data) {
@@ -753,14 +747,13 @@
             }
         }
 
-        // 角色设定云端交互（结构化卡片与浏览器标签页）
+        // 角色设定云端交互（含身高体重等字段与数据库映射）
         async function loadCharactersSettings() {
             const { data, error } = await supabaseClient.from('novel_characters').select('*').order('id');
             if (data && data.length > 0) {
                 charactersData = data;
             } else {
-                // 默认初始化一张角色卡
-                charactersData = [{ id: 1, name: '未命名角色', faction: '无', identity: '主角', personality: '', appearance: '', background: '' }];
+                charactersData = [{ id: 1, name: '未命名角色', faction: '', identity: '', height: '', weight: '', personality: '', appearance: '', background: '' }];
             }
             renderCharacterTabs();
             renderActiveCharacterCard();
@@ -799,28 +792,36 @@
                     <div class="character-card-grid">
                         <div class="character-field">
                             <label>角色姓名</label>
-                            <input type="text" id="char-name" value="${escapeHtml(char.name || '')}" oninput="updateCharField('name', this.value)" />
+                            <input type="text" value="${escapeHtml(char.name || '')}" oninput="updateCharField('name', this.value)" />
                         </div>
                         <div class="character-field">
                             <label>身份 / 定位</label>
-                            <input type="text" id="char-identity" value="${escapeHtml(char.identity || '')}" oninput="updateCharField('identity', this.value)" />
+                            <input type="text" value="${escapeHtml(char.identity || '')}" oninput="updateCharField('identity', this.value)" />
                         </div>
                         <div class="character-field">
                             <label>所属阵营 / 势力</label>
-                            <input type="text" id="char-faction" value="${escapeHtml(char.faction || '')}" oninput="updateCharField('faction', this.value)" />
+                            <input type="text" value="${escapeHtml(char.faction || '')}" oninput="updateCharField('faction', this.value)" />
+                        </div>
+                        <div class="character-field">
+                            <label>身高</label>
+                            <input type="text" placeholder="例如: 180cm" value="${escapeHtml(char.height || '')}" oninput="updateCharField('height', this.value)" />
+                        </div>
+                        <div class="character-field">
+                            <label>体重</label>
+                            <input type="text" placeholder="例如: 65kg" value="${escapeHtml(char.weight || '')}" oninput="updateCharField('weight', this.value)" />
                         </div>
                     </div>
                     <div class="character-field" style="margin-bottom: 8px;">
                         <label>性格特征</label>
-                        <input type="text" id="char-personality" value="${escapeHtml(char.personality || '')}" oninput="updateCharField('personality', this.value)" />
+                        <input type="text" value="${escapeHtml(char.personality || '')}" oninput="updateCharField('personality', this.value)" />
                     </div>
                     <div class="character-field" style="margin-bottom: 8px;">
                         <label>外貌特征 / 穿搭</label>
-                        <textarea rows="2" id="char-appearance" oninput="updateCharField('appearance', this.value)">${escapeHtml(char.appearance || '')}</textarea>
+                        <textarea rows="2" oninput="updateCharField('appearance', this.value)">${escapeHtml(char.appearance || '')}</textarea>
                     </div>
                     <div class="character-field" style="margin-bottom: 12px;">
                         <label>背景故事与经历</label>
-                        <textarea rows="3" id="char-background" oninput="updateCharField('background', this.value)">${escapeHtml(char.background || '')}</textarea>
+                        <textarea rows="3" oninput="updateCharField('background', this.value)">${escapeHtml(char.background || '')}</textarea>
                     </div>
                     <button onclick="saveCharacterCard()" style="width: 100%;">同步保存当前角色卡</button>
                 </div>
@@ -829,7 +830,6 @@
 
         function updateCharField(field, value) {
             charactersData[activeCharIndex][field] = value;
-            // 同步更新标签头文字
             if (field === 'name') {
                 const tabs = document.querySelectorAll('.browser-tab span');
                 if (tabs[activeCharIndex]) tabs[activeCharIndex].innerText = value || '未命名';
@@ -837,7 +837,7 @@
         }
 
         async function addNewCharacterCard() {
-            const newChar = { name: '新角色', faction: '', identity: '', personality: '', appearance: '', background: '' };
+            const newChar = { name: '新角色', faction: '', identity: '', height: '', weight: '', personality: '', appearance: '', background: '' };
             const { data, error } = await supabaseClient.from('novel_characters').insert([newChar]).select().single();
             if (!error && data) {
                 charactersData.push(data);
@@ -856,6 +856,8 @@
                 name: char.name,
                 faction: char.faction,
                 identity: char.identity,
+                height: char.height,
+                weight: char.weight,
                 personality: char.personality,
                 appearance: char.appearance,
                 background: char.background
@@ -881,7 +883,6 @@
             }
         }
 
-        /* ==================== 7. 其他基础渲染与辅助函数 ==================== */
         async function updatePassword() {
             const newPassword = document.getElementById('new-password-input').value;
             if (!newPassword || newPassword.length < 6) {
