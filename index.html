@@ -57,7 +57,7 @@
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            opacity: 0.85; /* 透明度锁定 85% */
+            opacity: 0.85; 
             z-index: -1;
             pointer-events: none;
         }
@@ -234,12 +234,17 @@
         function initBackground() {
             const savedBg = localStorage.getItem('local_chat_bg');
             if (savedBg) {
-                document.documentElement.style.setProperty('--custom-bg', `url(${savedBg})`);
                 const styleSheet = document.styleSheets[0];
                 try {
                     styleSheet.insertRule(`body::before { background-image: url(${savedBg}); }`, styleSheet.cssRules.length);
                 } catch (e) {
-                    // 兼容处理
+                    let styleTag = document.getElementById('dynamic-bg-style');
+                    if (!styleTag) {
+                        styleTag = document.createElement('style');
+                        styleTag.id = 'dynamic-bg-style';
+                        document.head.appendChild(styleTag);
+                    }
+                    styleTag.innerHTML = `body::before { background-image: url(${savedBg}) !important; }`;
                 }
             }
         }
@@ -252,7 +257,6 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    // 自适应压缩算法：若尺寸过大，等比例缩放到最大 1920 像素以内
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
@@ -273,12 +277,9 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // 转换为高质量压缩后的 JPEG 格式（质量 0.8），防止超出 localStorage 限制
                     const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-                    
                     localStorage.setItem('local_chat_bg', compressedBase64);
                     
-                    // 动态注入到当前页面伪元素背景中
                     let styleTag = document.getElementById('dynamic-bg-style');
                     if (!styleTag) {
                         styleTag = document.createElement('style');
@@ -287,7 +288,7 @@
                     }
                     styleTag.innerHTML = `body::before { background-image: url(${compressedBase64}) !important; }`;
                     
-                    alert('本地背景设置成功！(已自动进行体积与尺寸自适应压缩，不占用云端空间)');
+                    alert('本地背景设置成功！');
                 };
                 img.src = e.target.result;
             };
@@ -361,6 +362,10 @@
             oldestTimestamp = null;
             roomMembers = []; 
             cancelReply(); 
+            
+            // 💡 关键修复：进入新房间时，无论有没有历史消息，先无条件清空聊天框，防止上一房间内容混入
+            document.getElementById('chat-box').innerHTML = '加载中...';
+            
             document.getElementById('current-room-title').innerText = `- 当前隔间：${room.name}`;
             document.getElementById('input-area').classList.remove('hidden');
 
@@ -388,6 +393,10 @@
 
             const { data, error } = await query;
 
+            if (isInitial) {
+                chatBox.innerHTML = ''; // 确保初始清空
+            }
+
             if (!error && data && data.length > 0) {
                 const sortedData = data.reverse();
                 oldestTimestamp = sortedData[0].created_at; 
@@ -401,7 +410,6 @@
                 const previousHeight = chatBox.scrollHeight;
 
                 if (isInitial) {
-                    chatBox.innerHTML = '';
                     sortedData.forEach(msg => appendMessage(msg));
                     chatBox.scrollTop = chatBox.scrollHeight;
                 } else {
@@ -415,6 +423,9 @@
                     chatBox.insertBefore(tempDiv, chatBox.firstChild);
                     chatBox.scrollTop = chatBox.scrollHeight - previousHeight + oldScrollTop;
                 }
+            } else if (isInitial) {
+                // 如果为空房间，显示友好提示
+                chatBox.innerHTML = '<div style="color: var(--meta-color); text-align: center; margin-top: 20px;">这个隔间暂时还没有消息，快来发一条吧~</div>';
             }
             isLoadingMore = false;
         }
@@ -435,11 +446,15 @@
             currentSubscription = supabaseClient
                 .channel(`room:${roomId}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
+                    const chatBox = document.getElementById('chat-box');
+                    // 如果当前显示的是空房间提示，先清空再追加
+                    if (chatBox.innerHTML.includes('暂时还没有消息')) {
+                        chatBox.innerHTML = '';
+                    }
                     appendMessage(payload.new);
                     if (payload.new.user_name && !roomMembers.includes(payload.new.user_name)) {
                         roomMembers.push(payload.new.user_name);
                     }
-                    const chatBox = document.getElementById('chat-box');
                     chatBox.scrollTop = chatBox.scrollHeight;
                 })
                 .subscribe();
