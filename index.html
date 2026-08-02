@@ -17,6 +17,8 @@
             --room-active-text: #ffffff;
             --meta-color: #666;
             --msg-border: #eee;
+            --input-bg: #ffffff;
+            --input-text: #333333;
         }
 
         /* 暗色模式变量覆盖 */
@@ -31,6 +33,8 @@
             --room-active-text: #ffffff;
             --meta-color: #aaa;
             --msg-border: #333;
+            --input-bg: #2d2d2d;
+            --input-text: #e0e0e0;
         }
 
         body { 
@@ -53,10 +57,47 @@
         .room-item:hover { background: var(--room-hover); }
         .room-item.active { background: var(--room-active); color: var(--room-active-text); }
         
-        #chat-box { height: 350px; border: 1px solid var(--border-color); overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: var(--container-bg); }
-        .message { margin-bottom: 10px; border-bottom: 1px dashed var(--msg-border); padding-bottom: 5px; }
+        /* 滚动条暗色模式优化 */
+        #chat-box { 
+            height: 350px; 
+            border: 1px solid var(--border-color); 
+            overflow-y: scroll; 
+            padding: 10px; 
+            margin-bottom: 10px; 
+            background: var(--container-bg); 
+        }
+        #chat-box::-webkit-scrollbar { width: 8px; }
+        #chat-box::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+
+        .message { margin-bottom: 10px; border-bottom: 1px dashed var(--msg-border); padding-bottom: 5px; position: relative; }
         .message span { font-weight: bold; color: var(--room-active); }
         
+        /* 回复按钮样式 */
+        .reply-btn { float: right; font-size: 11px; background: none; border: none; color: var(--meta-color); cursor: pointer; }
+        .reply-btn:hover { color: var(--room-active); }
+
+        /* 引用预览条样式 */
+        #reply-preview-bar {
+            background: var(--room-bg);
+            border-left: 3px solid var(--room-active);
+            padding: 5px 10px;
+            margin-bottom: 5px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 0 4px 4px 0;
+        }
+
+        /* 输入框暗色模式适配 */
+        input[type="text"], input[type="password"], input[type="email"] {
+            background-color: var(--input-bg);
+            color: var(--input-text);
+            border: 1px solid var(--border-color);
+            padding: 6px;
+            border-radius: 4px;
+        }
+
         /* @ 提及高亮样式 */
         .mention { background-color: rgba(0, 123, 255, 0.15); padding: 2px 4px; border-radius: 3px; font-weight: bold; }
         [data-theme="dark"] .mention { background-color: rgba(13, 110, 253, 0.3); }
@@ -84,7 +125,6 @@
             background: var(--room-hover);
         }
 
-        /* 顶部工具栏控制区 */
         .top-bar { display: flex; justify-content: space-between; align-items: center; }
     </style>
 </head>
@@ -123,6 +163,12 @@
                 <!-- @ 联想弹窗列表 -->
                 <div id="mention-dropdown"></div>
 
+                <!-- 回复引用预览栏 -->
+                <div id="reply-preview-bar" class="hidden">
+                    <span id="reply-preview-text">正在回复...</span>
+                    <button onclick="cancelReply()" style="background:none; border:none; cursor:pointer; font-weight:bold;">×</button>
+                </div>
+
                 <div id="input-area" class="hidden" style="display: flex; gap: 5px;">
                     <input type="text" id="message-input" placeholder="输入聊天内容... (输入 @ 可提及他人)" style="flex: 1;" autocomplete="off" />
                     <button onclick="sendMessage()">发送</button>
@@ -138,7 +184,6 @@
     </div>
 
     <script>
-        // Supabase 配置初始化
         const SUPABASE_URL = 'https://pctuwkfztzmhlgjkeuvl.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_RVSfnyjPqLw5fn30Tlm3ig_XIgJipuG';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -147,9 +192,9 @@
         let currentSubscription = null;
         let oldestTimestamp = null; 
         let isLoadingMore = false;  
-        let roomMembers = []; // 用于缓存当前房间活跃过的用户名列表（供 @ 提示使用）
+        let roomMembers = []; 
+        let replyingToMessage = null; // 当前正在回复的目标消息对象
 
-        // 初始化检查用户状态及主题加载
         checkUser();
         initTheme();
 
@@ -224,7 +269,8 @@
 
             currentRoomId = room.id;
             oldestTimestamp = null;
-            roomMembers = []; // 切换房间时清空旧的成员缓存
+            roomMembers = []; 
+            cancelReply(); // 切换房间时清除回复状态
             document.getElementById('current-room-title').innerText = `- 当前隔间：${room.name}`;
             document.getElementById('input-area').classList.remove('hidden');
 
@@ -256,7 +302,6 @@
                 const sortedData = data.reverse();
                 oldestTimestamp = sortedData[0].created_at; 
 
-                // 收集当前加载的消息中的所有用户名，扩充 @ 提及列表
                 sortedData.forEach(msg => {
                     if (msg.user_name && !roomMembers.includes(msg.user_name)) {
                         roomMembers.push(msg.user_name);
@@ -292,7 +337,7 @@
             }
         }
 
-        /* ==================== 5. 实时同步模块 (Realtime) ==================== */
+        /* ==================== 5. 实时同步模块 ==================== */
         function subscribeMessages(roomId) {
             if (currentSubscription) {
                 supabaseClient.removeChannel(currentSubscription);
@@ -301,7 +346,6 @@
                 .channel(`room:${roomId}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
                     appendMessage(payload.new);
-                    // 动态收集新消息的用户加入 @ 列表
                     if (payload.new.user_name && !roomMembers.includes(payload.new.user_name)) {
                         roomMembers.push(payload.new.user_name);
                     }
@@ -311,17 +355,32 @@
                 .subscribe();
         }
 
-        /* ==================== 6. 消息发送与 @ 联动交互模块 ==================== */
+        /* ==================== 6. 回复 (Reply) 交互功能 ==================== */
+        function setReply(msg) {
+            replyingToMessage = msg;
+            const previewBar = document.getElementById('reply-preview-bar');
+            const previewText = document.getElementById('reply-preview-text');
+            
+            // 截取被回复消息的前25个字符作预览
+            const shortContent = msg.content.length > 25 ? msg.content.substring(0, 25) + '...' : msg.content;
+            previewText.innerText = `回复 @${msg.user_name}: ${shortContent}`;
+            previewBar.classList.remove('hidden');
+            document.getElementById('message-input').focus();
+        }
+
+        function cancelReply() {
+            replyingToMessage = null;
+            document.getElementById('reply-preview-bar').classList.add('hidden');
+        }
+
+        /* ==================== 7. 消息发送与 @ 联动交互模块 ==================== */
         const messageInput = document.getElementById('message-input');
         const mentionDropdown = document.getElementById('mention-dropdown');
 
-        // 监听输入框，实现输入 @ 时触发提及候选菜单
         messageInput.addEventListener('input', function() {
             const val = this.value;
             const cursorPos = this.selectionStart;
             const textBeforeCursor = val.substring(0, cursorPos);
-            
-            // 匹配最后一个 @ 符号后面的内容
             const match = textBeforeCursor.match(/@([^\s@]*)$/);
 
             if (match && roomMembers.length > 0) {
@@ -344,7 +403,6 @@
             mentionDropdown.style.display = 'none';
         });
 
-        // 选中某个 @ 提示后自动补全
         function insertMention(username) {
             const val = messageInput.value;
             const cursorPos = messageInput.selectionStart;
@@ -357,7 +415,6 @@
             messageInput.focus();
         }
 
-        // 点击输入框外部隐藏提及菜单
         document.addEventListener('click', (e) => {
             if (e.target !== messageInput && !mentionDropdown.contains(e.target)) {
                 mentionDropdown.style.display = 'none';
@@ -365,8 +422,14 @@
         });
 
         async function sendMessage() {
-            const content = messageInput.value;
+            let content = messageInput.value;
             if (!content.trim() || !currentRoomId) return;
+
+            // 如果处于回复状态，拼装引用格式
+            if (replyingToMessage) {
+                const quote = `> @${replyingToMessage.user_name}: ${replyingToMessage.content.replace(/\n/g, ' ')}\n\n`;
+                content = quote + content;
+            }
 
             const { data: { user } } = await supabaseClient.auth.getUser();
             const username = user.email.split('@')[0];
@@ -381,13 +444,14 @@
 
             if (!error) {
                 messageInput.value = '';
+                cancelReply();
                 mentionDropdown.style.display = 'none';
             } else {
                 alert('发送失败: ' + error.message);
             }
         }
 
-        /* ==================== 7. 辅助工具与安全渲染模块 ==================== */
+        /* ==================== 8. 辅助工具与安全渲染模块 ==================== */
         async function updatePassword() {
             const newPassword = document.getElementById('new-password-input').value;
             if (!newPassword || newPassword.length < 6) {
@@ -407,11 +471,17 @@
             const div = document.createElement('div');
             div.className = 'message';
             
-            // 安全过滤 HTML 并解析内容中的 @用户名 转换为高亮标签
             let safeContent = escapeHtml(msg.content);
+            // 针对引用行进行特殊样式包裹
+            safeContent = safeContent.replace(/^&gt; (.*)$/gm, '<blockquote style="margin: 0 0 5px 0; padding-left: 8px; border-left: 2px solid var(--room-active); color: var(--meta-color); font-size: 12px;">$1</blockquote>');
+            // 高亮 @用户名
             safeContent = safeContent.replace(/@([a-zA-Z0-9_\u4e00-\u9fa5]+)/g, '<span class="mention">@$1</span>');
 
-            div.innerHTML = `<span>${escapeHtml(msg.user_name)}:</span> ${safeContent}`;
+            div.innerHTML = `
+                <button class="reply-btn" onclick='setReply(${JSON.stringify(msg).replace(/'/g, "&#39;")})'>回复</button>
+                <span>${escapeHtml(msg.user_name)}:</span> 
+                <div style="margin-top: 4px;">${safeContent}</div>
+            `;
             return div;
         }
 
