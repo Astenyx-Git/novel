@@ -14,7 +14,7 @@
         .room-item:hover { background: #ddd; }
         .room-item.active { background: #007bff; color: white; }
         #chat-box { height: 350px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
-        .message { margin-bottom: 8px; }
+        .message { margin-bottom: 10px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
         .message span { font-weight: bold; color: #007bff; }
     </style>
 </head>
@@ -45,7 +45,7 @@
 
             <!-- 右侧：聊天区域 -->
             <div id="chat-main">
-                <div id="chat-box">请先在左侧选择一个房间</div>
+                <div id="chat-box" onscroll="handleScroll()">请先在左侧选择一个房间</div>
                 <div id="input-area" class="hidden">
                     <input type="text" id="message-input" placeholder="输入聊天内容..." style="width: 75%;" />
                     <button onclick="sendMessage()">发送</button>
@@ -67,6 +67,8 @@
         
         let currentRoomId = null;
         let currentSubscription = null;
+        let oldestTimestamp = null; 
+        let isLoadingMore = false;  
 
         checkUser();
 
@@ -100,7 +102,6 @@
             loadRooms();
         }
 
-        // 加载房间列表
         async function loadRooms() {
             const { data: rooms, error } = await supabaseClient.from('rooms').select('*').order('id');
             if (error) { console.error(error); return; }
@@ -111,14 +112,12 @@
                 const div = document.createElement('div');
                 div.className = 'room-item';
                 div.innerText = room.password ? `🔒 ${room.name}` : `💬 ${room.name}`;
-                div.onclick = () => selectRoom(room);
+                div.onclick = (e) => selectRoom(room, e.currentTarget);
                 container.appendChild(div);
             });
         }
 
-        // 选择房间并处理密码校验
-        async function selectRoom(room) {
-            // 如果房间有密码，弹窗要求输入
+        async function selectRoom(room, element) {
             if (room.password) {
                 const inputPwd = prompt(`【${room.name}】是加密房间，请输入访问密码：`);
                 if (inputPwd !== room.password) {
@@ -128,31 +127,63 @@
             }
 
             currentRoomId = room.id;
+            oldestTimestamp = null;
             document.getElementById('current-room-title').innerText = `- 当前隔间：${room.name}`;
             document.getElementById('input-area').classList.remove('hidden');
 
-            // 切换高亮样式
             document.querySelectorAll('.room-item').forEach(el => el.classList.remove('active'));
-            event.target.classList.add('active');
+            if (element) element.classList.add('active');
 
-            // 加载该房间历史消息并开启实时监听
-            loadMessages(room.id);
+            loadMessages(room.id, true);
             subscribeMessages(room.id);
         }
 
-        async function loadMessages(roomId) {
+        async function loadMessages(roomId, isInitial = false) {
             const chatBox = document.getElementById('chat-box');
-            const { data, error } = await supabaseClient
+            
+            let query = supabaseClient
                 .from('messages')
                 .select('*')
                 .eq('room_id', roomId)
-                .order('created_at', { ascending: true })
+                .order('created_at', { ascending: false })
                 .limit(50);
-            
-            if (!error) {
-                chatBox.innerHTML = '';
-                data.forEach(msg => appendMessage(msg));
-                chatBox.scrollTop = chatBox.scrollHeight;
+
+            if (!isInitial && oldestTimestamp) {
+                query = query.lt('created_at', oldestTimestamp);
+            }
+
+            const { data, error } = await query;
+
+            if (!error && data && data.length > 0) {
+                const sortedData = data.reverse();
+                oldestTimestamp = sortedData[0].created_at; 
+
+                const previousHeight = chatBox.scrollHeight;
+
+                if (isInitial) {
+                    chatBox.innerHTML = '';
+                    sortedData.forEach(msg => appendMessage(msg));
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } else {
+                    const oldScrollTop = chatBox.scrollTop;
+                    const tempDiv = document.createElement('div');
+                    sortedData.forEach(msg => {
+                        const div = createMessageElement(msg);
+                        tempDiv.appendChild(div);
+                    });
+
+                    chatBox.insertBefore(tempDiv, chatBox.firstChild);
+                    chatBox.scrollTop = chatBox.scrollHeight - previousHeight + oldScrollTop;
+                }
+            }
+            isLoadingMore = false;
+        }
+
+        function handleScroll() {
+            const chatBox = document.getElementById('chat-box');
+            if (chatBox.scrollTop === 0 && !isLoadingMore && currentRoomId) {
+                isLoadingMore = true;
+                loadMessages(currentRoomId, false);
             }
         }
 
@@ -164,13 +195,16 @@
                 .channel(`room:${roomId}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
                     appendMessage(payload.new);
-                    document.getElementById('chat-box').scrollTop = document.getElementById('chat-box').scrollHeight;
+                    const chatBox = document.getElementById('chat-box');
+                    chatBox.scrollTop = chatBox.scrollHeight;
                 })
                 .subscribe();
         }
 
         async function sendMessage() {
-            const content = document.getElementById('message-input').value;
+            const contentInput = document.getElementById('message-input');
+            const content = contentInput.value;
+
             if (!content.trim() || !currentRoomId) return;
 
             const { data: { user } } = await supabaseClient.auth.getUser();
@@ -178,10 +212,14 @@
 
             const { error } = await supabaseClient
                 .from('messages')
-                .insert([{ user_name: username, content: content, room_id: currentRoomId }]);
+                .insert([{ 
+                    user_name: username, 
+                    content: content, 
+                    room_id: currentRoomId 
+                }]);
 
             if (!error) {
-                document.getElementById('message-input').value = '';
+                contentInput.value = '';
             } else {
                 alert('发送失败: ' + error.message);
             }
@@ -202,15 +240,21 @@
             }
         }
 
-        function appendMessage(msg) {
-            const chatBox = document.getElementById('chat-box');
+        function createMessageElement(msg) {
             const div = document.createElement('div');
             div.className = 'message';
             div.innerHTML = `<span>${escapeHtml(msg.user_name)}:</span> ${escapeHtml(msg.content)}`;
+            return div;
+        }
+
+        function appendMessage(msg) {
+            const chatBox = document.getElementById('chat-box');
+            const div = createMessageElement(msg);
             chatBox.appendChild(div);
         }
 
         function escapeHtml(text) {
+            if (!text) return '';
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
     </script>
