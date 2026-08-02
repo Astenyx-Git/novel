@@ -45,6 +45,21 @@
             background-color: var(--bg-color); 
             color: var(--text-color); 
             transition: background-color 0.3s, color 0.3s;
+            position: relative;
+            min-height: 90vh;
+        }
+
+        /* 本地自定义背景图层及 85% 透明度锁定遮罩 */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.85; /* 透明度锁定 85% */
+            z-index: -1;
+            pointer-events: none;
         }
 
         .hidden { display: none !important; }
@@ -176,10 +191,13 @@
             </div>
         </div>
 
-        <!-- 修改密码区 -->
-        <div style="margin-top: 25px; padding: 10px; border: 1px dashed var(--border-color);">
-            <input type="password" id="new-password-input" placeholder="输入新密码 (至少6位)" style="width: 45%;" />
+        <!-- 修改密码与本地背景设置区 -->
+        <div style="margin-top: 25px; padding: 10px; border: 1px dashed var(--border-color); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <input type="password" id="new-password-input" placeholder="输入新密码 (至少6位)" style="width: 35%;" />
             <button onclick="updatePassword()">修改我的密码</button>
+            <input type="file" id="bg-file-input" accept="image/*" class="hidden" onchange="handleBgUpload(event)" />
+            <button onclick="document.getElementById('bg-file-input').click()">设置背景</button>
+            <button onclick="clearBackground()">清除背景</button>
         </div>
     </div>
 
@@ -193,10 +211,11 @@
         let oldestTimestamp = null; 
         let isLoadingMore = false;  
         let roomMembers = []; 
-        let replyingToMessage = null; // 当前正在回复的目标消息对象
+        let replyingToMessage = null; 
 
         checkUser();
         initTheme();
+        initBackground();
 
         /* ==================== 1. 主题切换模块 (Dark Mode) ==================== */
         function initTheme() {
@@ -211,7 +230,78 @@
             localStorage.setItem('theme', newTheme);
         }
 
-        /* ==================== 2. 用户认证与基础逻辑 ==================== */
+        /* ==================== 2. 本地自定义背景及智能压缩模块 ==================== */
+        function initBackground() {
+            const savedBg = localStorage.getItem('local_chat_bg');
+            if (savedBg) {
+                document.documentElement.style.setProperty('--custom-bg', `url(${savedBg})`);
+                const styleSheet = document.styleSheets[0];
+                try {
+                    styleSheet.insertRule(`body::before { background-image: url(${savedBg}); }`, styleSheet.cssRules.length);
+                } catch (e) {
+                    // 兼容处理
+                }
+            }
+        }
+
+        function handleBgUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    // 自适应压缩算法：若尺寸过大，等比例缩放到最大 1920 像素以内
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const MAX_SIZE = 1920;
+
+                    if (width > MAX_SIZE || height > MAX_SIZE) {
+                        if (width > height) {
+                            height = Math.round((height * MAX_SIZE) / width);
+                            width = MAX_SIZE;
+                        } else {
+                            width = Math.round((width * MAX_SIZE) / height);
+                            height = MAX_SIZE;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // 转换为高质量压缩后的 JPEG 格式（质量 0.8），防止超出 localStorage 限制
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    localStorage.setItem('local_chat_bg', compressedBase64);
+                    
+                    // 动态注入到当前页面伪元素背景中
+                    let styleTag = document.getElementById('dynamic-bg-style');
+                    if (!styleTag) {
+                        styleTag = document.createElement('style');
+                        styleTag.id = 'dynamic-bg-style';
+                        document.head.appendChild(styleTag);
+                    }
+                    styleTag.innerHTML = `body::before { background-image: url(${compressedBase64}) !important; }`;
+                    
+                    alert('本地背景设置成功！(已自动进行体积与尺寸自适应压缩，不占用云端空间)');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearBackground() {
+            localStorage.removeItem('local_chat_bg');
+            let styleTag = document.getElementById('dynamic-bg-style');
+            if (styleTag) styleTag.innerHTML = `body::before { background-image: none !important; }`;
+            alert('已清除本地背景图！');
+        }
+
+        /* ==================== 3. 用户认证与基础逻辑 ==================== */
         async function checkUser() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) { showChatRoom(); }
@@ -242,7 +332,7 @@
             loadRooms();
         }
 
-        /* ==================== 3. 房间加载与切换模块 ==================== */
+        /* ==================== 4. 房间加载与切换模块 ==================== */
         async function loadRooms() {
             const { data: rooms, error } = await supabaseClient.from('rooms').select('*').order('id');
             if (error) { console.error(error); return; }
@@ -270,7 +360,7 @@
             currentRoomId = room.id;
             oldestTimestamp = null;
             roomMembers = []; 
-            cancelReply(); // 切换房间时清除回复状态
+            cancelReply(); 
             document.getElementById('current-room-title').innerText = `- 当前隔间：${room.name}`;
             document.getElementById('input-area').classList.remove('hidden');
 
@@ -281,7 +371,7 @@
             subscribeMessages(room.id);
         }
 
-        /* ==================== 4. 消息加载与上划翻页模块 ==================== */
+        /* ==================== 5. 消息加载与上划翻页模块 ==================== */
         async function loadMessages(roomId, isInitial = false) {
             const chatBox = document.getElementById('chat-box');
             
@@ -337,7 +427,7 @@
             }
         }
 
-        /* ==================== 5. 实时同步模块 ==================== */
+        /* ==================== 6. 实时同步模块 ==================== */
         function subscribeMessages(roomId) {
             if (currentSubscription) {
                 supabaseClient.removeChannel(currentSubscription);
@@ -355,13 +445,12 @@
                 .subscribe();
         }
 
-        /* ==================== 6. 回复 (Reply) 交互功能 ==================== */
+        /* ==================== 7. 回复 (Reply) 交互功能 ==================== */
         function setReply(msg) {
             replyingToMessage = msg;
             const previewBar = document.getElementById('reply-preview-bar');
             const previewText = document.getElementById('reply-preview-text');
             
-            // 截取被回复消息的前25个字符作预览
             const shortContent = msg.content.length > 25 ? msg.content.substring(0, 25) + '...' : msg.content;
             previewText.innerText = `回复 @${msg.user_name}: ${shortContent}`;
             previewBar.classList.remove('hidden');
@@ -373,7 +462,7 @@
             document.getElementById('reply-preview-bar').classList.add('hidden');
         }
 
-        /* ==================== 7. 消息发送与 @ 联动交互模块 ==================== */
+        /* ==================== 8. 消息发送与 @ 联动交互模块 ==================== */
         const messageInput = document.getElementById('message-input');
         const mentionDropdown = document.getElementById('mention-dropdown');
 
@@ -425,7 +514,6 @@
             let content = messageInput.value;
             if (!content.trim() || !currentRoomId) return;
 
-            // 如果处于回复状态，拼装引用格式
             if (replyingToMessage) {
                 const quote = `> @${replyingToMessage.user_name}: ${replyingToMessage.content.replace(/\n/g, ' ')}\n\n`;
                 content = quote + content;
@@ -451,7 +539,7 @@
             }
         }
 
-        /* ==================== 8. 辅助工具与安全渲染模块 ==================== */
+        /* ==================== 9. 辅助工具与安全渲染模块 ==================== */
         async function updatePassword() {
             const newPassword = document.getElementById('new-password-input').value;
             if (!newPassword || newPassword.length < 6) {
@@ -472,9 +560,7 @@
             div.className = 'message';
             
             let safeContent = escapeHtml(msg.content);
-            // 针对引用行进行特殊样式包裹
             safeContent = safeContent.replace(/^&gt; (.*)$/gm, '<blockquote style="margin: 0 0 5px 0; padding-left: 8px; border-left: 2px solid var(--room-active); color: var(--meta-color); font-size: 12px;">$1</blockquote>');
-            // 高亮 @用户名
             safeContent = safeContent.replace(/@([a-zA-Z0-9_\u4e00-\u9fa5]+)/g, '<span class="mention">@$1</span>');
 
             div.innerHTML = `
