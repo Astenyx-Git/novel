@@ -1,962 +1,827 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NovelSpacePro</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        :root {
-            --bg-color: #ffffff;
-            --text-color: #333333;
-            --container-bg: rgba(249, 249, 249, 0.95);
-            --border-color: #ccc;
-            --room-bg: rgba(238, 238, 238, 0.95);
-            --room-hover: rgba(221, 221, 221, 0.95);
-            --room-active: #007bff;
-            --room-active-text: #ffffff;
-            --meta-color: #666;
-            --msg-border: #eee;
-            --input-bg: #ffffff;
-            --input-text: #333333;
-            --drawer-bg: #ffffff;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NovelSpacePro</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --container-bg: rgba(249, 249, 249, 0.95);
+    --border-color: #ccc;
+    --room-bg: rgba(238, 238, 238, 0.95);
+    --room-hover: rgba(221, 221, 221, 0.95);
+    --room-active: #007bff;
+    --room-active-text: #ffffff;
+    --meta-color: #666;
+    --msg-border: #eee;
+    --input-bg: #ffffff;
+    --input-text: #333333;
+    --drawer-bg: #ffffff;
+}
+[data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #e0e0e0;
+    --container-bg: rgba(36, 36, 36, 0.95);
+    --border-color: #444;
+    --room-bg: rgba(42, 42, 42, 0.95);
+    --room-hover: rgba(58, 58, 58, 0.95);
+    --room-active: #0d6efd;
+    --room-active-text: #ffffff;
+    --meta-color: #aaa;
+    --msg-border: #333;
+    --input-bg: #2d2d2d;
+    --input-text: #e0e0e0;
+    --drawer-bg: #1e1e1e;
+}
+body {
+    font-family: sans-serif;
+    max-width: 700px;
+    margin: 20px auto;
+    padding: 0 15px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+    position: relative;
+    min-height: 90vh;
+    box-sizing: border-box;
+}
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.85;
+    z-index: -1;
+    pointer-events: none;
+}
+.hidden { display: none !important; }
+.layout { display: flex; gap: 20px; position: relative; }
+#room-list { width: 30%; border-right: 1px solid var(--border-color); padding-right: 10px; }
+#chat-main { width: 70%; position: relative; }
+.room-item { padding: 8px; margin-bottom: 5px; background: var(--room-bg); cursor: pointer; border-radius: 4px; backdrop-filter: blur(2px); }
+.room-item:hover { background: var(--room-hover); }
+.room-item.active { background: var(--room-active); color: var(--room-active-text); }
+#chat-box {
+    height: 350px;
+    border: 1px solid var(--border-color);
+    overflow-y: scroll;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: var(--container-bg);
+    border-radius: 4px;
+    backdrop-filter: blur(2px);
+}
+#chat-box::-webkit-scrollbar { width: 8px; }
+#chat-box::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+.message { margin-bottom: 10px; border-bottom: 1px dashed var(--msg-border); padding-bottom: 5px; position: relative; }
+.message span { font-weight: bold; color: var(--room-active); }
+.reply-btn { float: right; font-size: 11px; background: none; border: none; color: var(--meta-color); cursor: pointer; }
+.reply-btn:hover { color: var(--room-active); }
+#reply-preview-bar {
+    background: var(--room-bg);
+    border-left: 3px solid var(--room-active);
+    padding: 5px 10px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0 4px 4px 0;
+    backdrop-filter: blur(2px);
+}
+/* 1. 密码输入框与文本输入框规格同等调整 */
+input[type="text"], input[type="password"], input[type="email"], textarea, select {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border: 1px solid var(--border-color);
+    padding: 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+.mention { background-color: rgba(0, 123, 255, 0.15); padding: 2px 4px; border-radius: 3px; font-weight: bold; }
+[data-theme="dark"] .mention { background-color: rgba(13, 110, 253, 0.3); }
+#mention-dropdown {
+    position: absolute;
+    bottom: 50px;
+    left: 0;
+    background: var(--container-bg);
+    border: 1px solid var(--border-color);
+    max-height: 120px;
+    overflow-y: auto;
+    width: 150px;
+    display: none;
+    border-radius: 4px;
+    z-index: 10;
+    backdrop-filter: blur(2px);
+}
+.mention-option { padding: 6px 10px; cursor: pointer; font-size: 13px; }
+.mention-option:hover { background: var(--room-hover); }
+.top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; gap: 10px; }
 
-        [data-theme="dark"] {
-            --bg-color: #1a1a1a;
-            --text-color: #e0e0e0;
-            --container-bg: rgba(36, 36, 36, 0.95);
-            --border-color: #444;
-            --room-bg: rgba(42, 42, 42, 0.95);
-            --room-hover: rgba(58, 58, 58, 0.95);
-            --room-active: #0d6efd;
-            --room-active-text: #ffffff;
-            --meta-color: #aaa;
-            --msg-border: #333;
-            --input-bg: #2d2d2d;
-            --input-text: #e0e0e0;
-            --drawer-bg: #1e1e1e;
-        }
+/* 2. 白色格式的全局按钮调整为 3% 透明度 */
+.top-bar-right button, 
+.global-actions button,
+#auth-section button,
+#chat-section button:not(.circle-btn) {
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    backdrop-filter: blur(2px);
+    transition: background-color 0.2s;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.top-bar-right button:hover, 
+.global-actions button:hover,
+#auth-section button:hover,
+#chat-section button:not(.circle-btn):hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
 
-        body { 
-            font-family: sans-serif; 
-            max-width: 700px; 
-            margin: 20px auto; 
-            padding: 0 15px; 
-            background-color: var(--bg-color); 
-            color: var(--text-color); 
-            transition: background-color 0.3s, color 0.3s;
-            position: relative;
-            min-height: 90vh;
-            box-sizing: border-box;
-        }
+/* 桌面端专属悬浮按钮区（挂在聊天主区域右上角外侧） */
+.side-action-bar { position: absolute; right: -40px; top: 0; display: flex; flex-direction: column; gap: 8px; z-index: 5; }
 
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            opacity: 0.85; 
-            z-index: -1;
-            pointer-events: none;
-        }
+/* 3. 世界观与角色设定按钮（circle-btn）适当增加透明度，避免影响观感 */
+.circle-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--room-active) 80%, transparent); /* 适当透明度 */
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    transition: transform 0.2s, background-color 0.2s;
+    font-size: 13px;
+    position: relative;
+    backdrop-filter: blur(4px);
+}
+.circle-btn:hover {
+    transform: scale(1.1);
+    background: var(--room-active); /* 悬停时加深强化反馈 */
+    filter: brightness(1.1);
+}
+.circle-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: 38px;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 3px 6px;
+    font-size: 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+.circle-btn:hover::after { opacity: 1; }
+/* 移动端专属顶部操作栏区域 */
+#mobile-action-bar { display: none; }
+/* 侧边抽屉面板 */
+.setting-drawer {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 450px;
+    max-width: 90vw;
+    height: 100vh;
+    background: var(--drawer-bg);
+    box-shadow: -5px 0 25px rgba(0,0,0,0.3);
+    z-index: 100;
+    transition: right 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    box-sizing: border-box;
+    border-left: 1px solid var(--border-color);
+}
+.setting-drawer.open { right: 0; }
+.drawer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
+.drawer-body { flex: 1; overflow-y: auto; padding-right: 5px; }
+.browser-tabs { display: flex; background: var(--room-bg); padding: 6px 6px 0 6px; border-radius: 6px 6px 0 0; border-bottom: 1px solid var(--border-color); overflow-x: auto; gap: 4px; }
+.browser-tab { padding: 6px 14px; background: var(--container-bg); border: 1px solid var(--border-color); border-bottom: none; border-radius: 6px 6px 0 0; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.browser-tab.active { background: var(--drawer-bg); font-weight: bold; border-top: 2px solid var(--room-active); }
+.browser-tab-add { padding: 6px 12px; background: none; border: none; cursor: pointer; font-size: 16px; color: var(--room-active); }
+.character-card { background: var(--container-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-top: 10px; backdrop-filter: blur(2px); }
+.character-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.character-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 
-        .hidden { display: none !important; }
-        .layout { display: flex; gap: 20px; position: relative; }
-        
-        #room-list { width: 30%; border-right: 1px solid var(--border-color); padding-right: 10px; }
-        #chat-main { width: 70%; position: relative; }
-        
-        .room-item { padding: 8px; margin-bottom: 5px; background: var(--room-bg); cursor: pointer; border-radius: 4px; backdrop-filter: blur(2px); }
-        .room-item:hover { background: var(--room-hover); }
-        .room-item.active { background: var(--room-active); color: var(--room-active-text); }
-        
-        #chat-box { 
-            height: 350px; 
-            border: 1px solid var(--border-color); 
-            overflow-y: scroll; 
-            padding: 10px; 
-            margin-bottom: 10px; 
-            background: var(--container-bg); 
-            border-radius: 4px;
-            backdrop-filter: blur(2px);
-        }
-        #chat-box::-webkit-scrollbar { width: 8px; }
-        #chat-box::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-
-        .message { margin-bottom: 10px; border-bottom: 1px dashed var(--msg-border); padding-bottom: 5px; position: relative; }
-        .message span { font-weight: bold; color: var(--room-active); }
-        
-        .reply-btn { float: right; font-size: 11px; background: none; border: none; color: var(--meta-color); cursor: pointer; }
-        .reply-btn:hover { color: var(--room-active); }
-
-        #reply-preview-bar {
-            background: var(--room-bg);
-            border-left: 3px solid var(--room-active);
-            padding: 5px 10px;
-            margin-bottom: 5px;
-            font-size: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-radius: 0 4px 4px 0;
-            backdrop-filter: blur(2px);
-        }
-
-        input[type="text"], input[type="password"], input[type="email"], textarea, select {
-            background-color: var(--input-bg);
-            color: var(--input-text);
-            border: 1px solid var(--border-color);
-            padding: 6px;
-            border-radius: 4px;
-            font-family: inherit;
-            box-sizing: border-box;
-        }
-
-        .mention { background-color: rgba(0, 123, 255, 0.15); padding: 2px 4px; border-radius: 3px; font-weight: bold; }
-        [data-theme="dark"] .mention { background-color: rgba(13, 110, 253, 0.3); }
-
-        #mention-dropdown {
-            position: absolute;
-            bottom: 50px;
-            left: 0;
-            background: var(--container-bg);
-            border: 1px solid var(--border-color);
-            max-height: 120px;
-            overflow-y: auto;
-            width: 150px;
-            display: none;
-            border-radius: 4px;
-            z-index: 10;
-            backdrop-filter: blur(2px);
-        }
-        .mention-option { padding: 6px 10px; cursor: pointer; font-size: 13px; }
-        .mention-option:hover { background: var(--room-hover); }
-
-        .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; gap: 10px; }
-
-        /* 桌面端专属悬浮按钮区（挂在聊天主区域右上角外侧） */
-        .side-action-bar {
-            position: absolute;
-            right: -40px;
-            top: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            z-index: 5;
-        }
-        .circle-btn {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: var(--room-active);
-            color: #ffffff;
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            transition: transform 0.2s, background-color 0.2s;
-            font-size: 13px;
-            position: relative;
-        }
-        .circle-btn:hover { transform: scale(1.1); filter: brightness(1.1); }
-        .circle-btn::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            right: 38px;
-            background: rgba(0,0,0,0.8);
-            color: #fff;
-            padding: 3px 6px;
-            font-size: 10px;
-            border-radius: 3px;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s;
-        }
-        .circle-btn:hover::after { opacity: 1; }
-
-        /* 移动端专属顶部操作栏区域 */
-        #mobile-action-bar {
-            display: none;
-        }
-
-        /* 侧边抽屉面板 */
-        .setting-drawer {
-            position: fixed;
-            top: 0; right: -100%;
-            width: 450px;
-            max-width: 90vw;
-            height: 100vh;
-            background: var(--drawer-bg);
-            box-shadow: -5px 0 25px rgba(0,0,0,0.3);
-            z-index: 100;
-            transition: right 0.3s ease-in-out;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            box-sizing: border-box;
-            border-left: 1px solid var(--border-color);
-        }
-        .setting-drawer.open { right: 0; }
-        .drawer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
-        .drawer-body { flex: 1; overflow-y: auto; padding-right: 5px; }
-
-        .browser-tabs {
-            display: flex;
-            background: var(--room-bg);
-            padding: 6px 6px 0 6px;
-            border-radius: 6px 6px 0 0;
-            border-bottom: 1px solid var(--border-color);
-            overflow-x: auto;
-            gap: 4px;
-        }
-        .browser-tab {
-            padding: 6px 14px;
-            background: var(--container-bg);
-            border: 1px solid var(--border-color);
-            border-bottom: none;
-            border-radius: 6px 6px 0 0;
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            max-width: 130px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .browser-tab.active {
-            background: var(--drawer-bg);
-            font-weight: bold;
-            border-top: 2px solid var(--room-active);
-        }
-        .browser-tab-add {
-            padding: 6px 12px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            color: var(--room-active);
-        }
-
-        .character-card {
-            background: var(--container-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 15px;
-            margin-top: 10px;
-            backdrop-filter: blur(2px);
-        }
-        .character-card-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .character-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
-
-        /* 移动端媒体查询：PC端隐藏移动端栏，移动端隐藏PC悬浮栏，并将工作区按钮置于全局按钮下方 */
-        @media (max-width: 768px) {
-            body { max-width: 100%; margin: 0; padding: 10px; }
-            .layout { flex-direction: column; gap: 10px; }
-            #room-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
-            #chat-main { width: 100%; }
-            
-            #pc-action-bar {
-                display: none !important;
-            }
-            
-            .top-bar-right {
-                display: flex;
-                flex-direction: column;
-                align-items: flex-end;
-                gap: 6px;
-            }
-
-            .global-actions {
-                display: flex;
-                gap: 6px;
-            }
-
-            #mobile-action-bar {
-                display: flex;
-                gap: 8px;
-            }
-            
-            .setting-drawer { width: 100%; max-width: 100vw; }
-            .character-card-grid { grid-template-columns: 1fr; }
-        }
-    </style>
+/* 移动端媒体查询 */
+@media (max-width: 768px) {
+    body { max-width: 100%; margin: 0; padding: 10px; }
+    .layout { flex-direction: column; gap: 10px; }
+    #room-list { width: 100%; border-right: none; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+    #chat-main { width: 100%; }
+    #pc-action-bar { display: none !important; }
+    .top-bar-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .global-actions { display: flex; gap: 6px; }
+    #mobile-action-bar { display: flex; gap: 8px; }
+    .setting-drawer { width: 100%; max-width: 100vw; }
+    .character-card-grid { grid-template-columns: 1fr; }
+}
+</style>
 </head>
 <body>
 
-    <div id="auth-section">
-        <h2>创作空间 <button onclick="toggleTheme()" style="float: right; font-size: 12px; padding: 4px 8px;">🌓 切换主题</button></h2>
-        <input type="email" id="email-input" placeholder="输入所有者分配的邮箱" style="width: 100%; max-width: 400px;" /><br><br>
-        <input type="password" id="password-input" placeholder="输入密码" style="width: 100%; max-width: 400px;" /><br><br>
-        <button onclick="login()">登录</button>
-        <p id="auth-error" style="color: red;"></p>
-    </div>
+<div id="auth-section">
+    <h2>创作空间 <button onclick="toggleTheme()" style="font-size: 12px; padding: 4px 8px;">🌓 切换主题</button></h2>
+    <input type="email" id="email-input" placeholder="输入所有者分配的邮箱" style="width: 100%; max-width: 400px;" /><br><br>
+    <input type="password" id="password-input" placeholder="输入密码" style="width: 100%; max-width: 400px;" /><br><br>
+    <button onclick="login()">登录</button>
+    <p id="auth-error" style="color: red;"></p>
+</div>
 
-    <div id="chat-section" class="hidden">
-        <div class="top-bar">
-            <div>
-                <h2>创作空间</h2>
-                <span id="current-room-title" style="font-size: 13px; color: var(--meta-color);"></span>
-            </div>
-            <div class="top-bar-right">
-                <!-- 全局操作按钮 -->
-                <div class="global-actions">
-                    <button onclick="toggleTheme()" style="font-size: 12px; padding: 6px 10px;">🌓 主题</button>
-                    <button onclick="logout()" style="font-size: 12px; padding: 6px 10px;">退出</button>
-                </div>
-                <!-- 移动端专属工作区按钮区（位于全局按钮下方，未选择工作区时保持隐藏） -->
-                <div id="mobile-action-bar" class="hidden">
-                    <button class="circle-btn" onclick="openWorldDrawer()">🌍</button>
-                    <button class="circle-btn" onclick="openCharDrawer()">👥</button>
-                </div>
-            </div>
+<div id="chat-section" class="hidden">
+    <div class="top-bar">
+        <div>
+            <h2>创作空间</h2>
+            <span id="current-room-title" style="font-size: 13px; color: var(--meta-color);"></span>
         </div>
-
-        <div class="layout">
-            <div id="room-list">
-                <h3>讨论工作区</h3>
-                <div id="rooms-container"></div>
+        <div class="top-bar-right">
+            <!-- 全局操作按钮 -->
+            <div class="global-actions">
+                <button onclick="toggleTheme()" style="font-size: 12px; padding: 6px 10px;">🌓 主题</button>
+                <button onclick="logout()" style="font-size: 12px; padding: 6px 10px;">退出</button>
             </div>
-
-            <div id="chat-main">
-                <!-- PC端专属悬浮按钮区（挂在聊天主区域右上角外侧，未选择工作区时保持隐藏） -->
-                <div id="pc-action-bar" class="side-action-bar hidden">
-                    <button class="circle-btn" data-tooltip="世界观设定" onclick="openWorldDrawer()">🌍</button>
-                    <button class="circle-btn" data-tooltip="角色设定" onclick="openCharDrawer()">👥</button>
-                </div>
-
-                <div id="chat-box" onscroll="handleScroll()">请先在左侧选择一个工作区</div>
-                
-                <div id="mention-dropdown"></div>
-
-                <div id="reply-preview-bar" class="hidden">
-                    <span id="reply-preview-text">正在回复...</span>
-                    <button onclick="cancelReply()" style="background:none; border:none; cursor:pointer; font-weight:bold;">×</button>
-                </div>
-
-                <div id="input-area" class="hidden" style="display: flex; gap: 5px;">
-                    <input type="text" id="message-input" placeholder="输入内容..." style="flex: 1;" autocomplete="off" />
-                    <button onclick="sendMessage()">发送</button>
-                </div>
-            </div>
-        </div>
-
-        <div style="margin-top: 25px; padding: 10px; border: 1px dashed var(--border-color); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <input type="password" id="new-password-input" placeholder="输入新密码 (至少6位)" style="width: 100%; max-width: 250px;" />
-            <button onclick="updatePassword()">修改密码</button>
-            <input type="file" id="bg-file-input" accept="image/*" class="hidden" onchange="handleBgUpload(event)" />
-            <button onclick="document.getElementById('bg-file-input').click()">设置背景</button>
-            <button onclick="clearBackground()">清除背景</button>
-        </div>
-    </div>
-
-    <!-- 世界观设定面板 -->
-    <div id="world-drawer" class="setting-drawer">
-        <div class="drawer-header">
-            <h3>🌍 当前工作区世界观</h3>
-            <button onclick="closeDrawers()" style="background:none; border:none; font-size:18px; cursor:pointer;">×</button>
-        </div>
-        <div class="drawer-body">
-            <p style="font-size: 12px; color: var(--meta-color); margin-bottom: 10px;">提示：世界观与设定现已随工作区独立隔离。</p>
-            <div style="display: flex; flex-direction: column; gap: 15px;">
-                <div class="character-card">
-                    <h4>📜 时代背景与核心大纲</h4>
-                    <textarea id="world-background" rows="4" style="width:100%; margin-top:5px;" placeholder="在此输入世界观宏观背景..."></textarea>
-                </div>
-                <div class="character-card">
-                    <h4>⚙️ 力量体系与规则限制</h4>
-                    <textarea id="world-rules" rows="4" style="width:100%; margin-top:5px;" placeholder="在此输入力量等级、魔法/科技法则..."></textarea>
-                </div>
-                <div class="character-card">
-                    <h4>🗺️ 地理势力分布</h4>
-                    <textarea id="world-geography" rows="4" style="width:100%; margin-top:5px;" placeholder="在此输入主要国家、门派、地图区域..."></textarea>
-                </div>
-                <button onclick="saveWorldSettings()">保存本工作区世界观</button>
+            <!-- 移动端专属工作区按钮区 -->
+            <div id="mobile-action-bar" class="hidden">
+                <button class="circle-btn" onclick="openWorldDrawer()">🌍</button>
+                <button class="circle-btn" onclick="openCharDrawer()">👥</button>
             </div>
         </div>
     </div>
 
-    <!-- 角色设定面板 -->
-    <div id="char-drawer" class="setting-drawer">
-        <div class="drawer-header">
-            <h3>👥 当前工作区角色档案库</h3>
-            <button onclick="closeDrawers()" style="background:none; border:none; font-size:18px; cursor:pointer;">×</button>
+    <div class="layout">
+        <div id="room-list">
+            <h3>讨论工作区</h3>
+            <div id="rooms-container"></div>
         </div>
-        <div class="drawer-body">
-            <div class="browser-tabs" id="char-tabs-container">
-                <button class="browser-tab-add" onclick="addNewCharacterCard()">＋ 新增角色</button>
+        <div id="chat-main">
+            <!-- PC端专属悬浮按钮区 -->
+            <div id="pc-action-bar" class="side-action-bar hidden">
+                <button class="circle-btn" data-tooltip="世界观设定" onclick="openWorldDrawer()">🌍</button>
+                <button class="circle-btn" data-tooltip="角色设定" onclick="openCharDrawer()">👥</button>
             </div>
-            <div id="char-content-container" style="margin-top: 15px;"></div>
+            <div id="chat-box" onscroll="handleScroll()">请先在左侧选择一个工作区</div>
+            <div id="mention-dropdown"></div>
+            <div id="reply-preview-bar" class="hidden">
+                <span id="reply-preview-text">正在回复...</span>
+                <button onclick="cancelReply()" style="background:none; border:none; cursor:pointer; font-weight:bold;">×</button>
+            </div>
+            <div id="input-area" class="hidden" style="display: flex; gap: 5px;">
+                <input type="text" id="message-input" placeholder="输入内容..." style="flex: 1;" autocomplete="off" />
+                <button onclick="sendMessage()">发送</button>
+            </div>
         </div>
     </div>
 
-    <script>
-        const SUPABASE_URL = 'https://pctuwkfztzmhlgjkeuvl.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_RVSfnyjPqLw5fn30Tlm3ig_XIgJipuG';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        let currentRoomId = null;
-        let currentSubscription = null;
-        let oldestTimestamp = null; 
-        let isLoadingMore = false;  
-        let roomMembers = []; 
-        let replyingToMessage = null; 
+    <div style="margin-top: 25px; padding: 10px; border: 1px dashed var(--border-color); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <input type="password" id="new-password-input" placeholder="输入新密码 (至少6位)" style="width: 100%; max-width: 250px;" />
+        <button onclick="updatePassword()">修改密码</button>
+        <input type="file" id="bg-file-input" accept="image/*" class="hidden" onchange="handleBgUpload(event)" />
+        <button onclick="document.getElementById('bg-file-input').click()">设置背景</button>
+        <button onclick="clearBackground()">清除背景</button>
+    </div>
+</div>
 
-        let charactersData = [];
-        let activeCharIndex = 0;
+<!-- 世界观设定面板 -->
+<div id="world-drawer" class="setting-drawer">
+    <div class="drawer-header">
+        <h3>🌍 当前工作区世界观</h3>
+        <button onclick="closeDrawers()" style="background:none; border:none; font-size:18px; cursor:pointer;">×</button>
+    </div>
+    <div class="drawer-body">
+        <p style="font-size: 12px; color: var(--meta-color); margin-bottom: 10px;">提示：世界观与设定现已随工作区独立隔离。</p>
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div class="character-card">
+                <h4>📜 时代背景与核心大纲</h4>
+                <textarea id="world-background" rows="4" style="width:100%; margin-top:5px;" placeholder="在此输入世界观宏观背景..."></textarea>
+            </div>
+            <div class="character-card">
+                <h4>⚙️ 力量体系与规则限制</h4>
+                <textarea id="world-rules" rows="4" style="width:100%; margin-top:5px;" placeholder="在此输入力量等级、魔法/科技法则..."></textarea>
+            </div>
+            <div class="character-card">
+                <h4>🗺️ 地理势力分布</h4>
+                <textarea id="world-geography" rows="4" style="width:100%; margin-top:5px;" placeholder="在此输入主要国家、门派、地图区域..."></textarea>
+            </div>
+            <button onclick="saveWorldSettings()">保存本工作区世界观</button>
+        </div>
+    </div>
+</div>
 
-        checkUser();
-        initTheme();
-        initBackground();
+<!-- 角色设定面板 -->
+<div id="char-drawer" class="setting-drawer">
+    <div class="drawer-header">
+        <h3>👥 当前工作区角色档案库</h3>
+        <button onclick="closeDrawers()" style="background:none; border:none; font-size:18px; cursor:pointer;">×</button>
+    </div>
+    <div class="drawer-body">
+        <div class="browser-tabs" id="char-tabs-container">
+            <button class="browser-tab-add" onclick="addNewCharacterCard()">＋ 新增角色</button>
+        </div>
+        <div id="char-content-container" style="margin-top: 15px;"></div>
+    </div>
+</div>
 
-        function initTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
+<script>
+const SUPABASE_URL = 'https://pctuwkfztzmhlgjkeuvl.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_RVSfnyjPqLw5fn30Tlm3ig_XIgJipuG';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentRoomId = null;
+let currentSubscription = null;
+let oldestTimestamp = null;
+let isLoadingMore = false;
+let roomMembers = [];
+let replyingToMessage = null;
+let charactersData = [];
+let activeCharIndex = 0;
+
+checkUser();
+initTheme();
+initBackground();
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+}
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+}
+function initBackground() {
+    const savedBg = localStorage.getItem('local_chat_bg');
+    if (savedBg) {
+        let styleTag = document.getElementById('dynamic-bg-style');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'dynamic-bg-style';
+            document.head.appendChild(styleTag);
         }
-
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-        }
-
-        function initBackground() {
-            const savedBg = localStorage.getItem('local_chat_bg');
-            if (savedBg) {
-                let styleTag = document.getElementById('dynamic-bg-style');
-                if (!styleTag) {
-                    styleTag = document.createElement('style');
-                    styleTag.id = 'dynamic-bg-style';
-                    document.head.appendChild(styleTag);
-                }
-                styleTag.innerHTML = `body::before { background-image: url(${savedBg}) !important; }`;
-            }
-        }
-
-        function handleBgUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    const MAX_SIZE = 1920;
-
-                    if (width > MAX_SIZE || height > MAX_SIZE) {
-                        if (width > height) {
-                            height = Math.round((height * MAX_SIZE) / width);
-                            width = MAX_SIZE;
-                        } else {
-                            width = Math.round((width * MAX_SIZE) / height);
-                            height = MAX_SIZE;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-                    localStorage.setItem('local_chat_bg', compressedBase64);
-                    initBackground();
-                    alert('本地背景设置成功！');
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function clearBackground() {
-            localStorage.removeItem('local_chat_bg');
-            let styleTag = document.getElementById('dynamic-bg-style');
-            if (styleTag) styleTag.innerHTML = `body::before { background-image: none !important; }`;
-            alert('已清除本地背景图！');
-        }
-
-        async function checkUser() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) { showChatRoom(); }
-        }
-
-        async function login() {
-            const email = document.getElementById('email-input').value;
-            const password = document.getElementById('password-input').value;
-            const errorTag = document.getElementById('auth-error');
-
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) {
-                errorTag.innerText = '登录失败: ' + error.message;
-            } else {
-                showChatRoom();
-            }
-        }
-
-        async function logout() {
-            await supabaseClient.auth.signOut();
-            document.getElementById('chat-section').classList.add('hidden');
-            document.getElementById('auth-section').classList.remove('hidden');
-        }
-
-        function showChatRoom() {
-            document.getElementById('auth-section').classList.add('hidden');
-            document.getElementById('chat-section').classList.remove('hidden');
-            loadRooms();
-        }
-
-        async function loadRooms() {
-            const { data: rooms, error } = await supabaseClient.from('rooms').select('*').order('id');
-            if (error) { console.error(error); return; }
-
-            const container = document.getElementById('rooms-container');
-            container.innerHTML = '';
-            rooms.forEach(room => {
-                const div = document.createElement('div');
-                div.className = 'room-item';
-                div.innerText = room.password ? `🔒 ${room.name}` : `💬 ${room.name}`;
-                div.onclick = (e) => selectRoom(room, e.currentTarget);
-                container.appendChild(div);
-            });
-        }
-
-        async function selectRoom(room, element) {
-            if (room.password) {
-                const inputPwd = prompt(`【${room.name}】是加密工作区，请输入访问密码：`);
-                if (inputPwd !== room.password) {
-                    alert('密码错误，拒绝进入！');
-                    return;
-                }
-            }
-
-            currentRoomId = room.id;
-            oldestTimestamp = null;
-            roomMembers = []; 
-            cancelReply(); 
-            
-            document.getElementById('chat-box').innerHTML = '加载中...';
-            document.getElementById('current-room-title').innerText = `当前工作区：${room.name}`;
-            document.getElementById('input-area').classList.remove('hidden');
-            
-            // 选择工作区后分别在 PC 端与移动端显示对应的按钮栏
-            document.getElementById('pc-action-bar').classList.remove('hidden');
-            document.getElementById('mobile-action-bar').classList.remove('hidden');
-
-            document.querySelectorAll('.room-item').forEach(el => el.classList.remove('active'));
-            if (element) element.classList.add('active');
-
-            loadMessages(room.id, true);
-            subscribeMessages(room.id);
-
-            loadWorldSettings(room.id);
-            loadCharactersSettings(room.id);
-        }
-
-        async function loadMessages(roomId, isInitial = false) {
-            const chatBox = document.getElementById('chat-box');
-            
-            let query = supabaseClient
-                .from('messages')
-                .select('*')
-                .eq('room_id', roomId)
-                .order('created_at', { ascending: false })
-                .limit(50);
-
-            if (!isInitial && oldestTimestamp) {
-                query = query.lt('created_at', oldestTimestamp);
-            }
-
-            const { data, error } = await query;
-            if (isInitial) { chatBox.innerHTML = ''; }
-
-            if (!error && data && data.length > 0) {
-                const sortedData = data.reverse();
-                oldestTimestamp = sortedData[0].created_at; 
-
-                sortedData.forEach(msg => {
-                    if (msg.user_name && !roomMembers.includes(msg.user_name)) {
-                        roomMembers.push(msg.user_name);
-                    }
-                });
-
-                const previousHeight = chatBox.scrollHeight;
-
-                if (isInitial) {
-                    sortedData.forEach(msg => appendMessage(msg));
-                    chatBox.scrollTop = chatBox.scrollHeight;
+        styleTag.innerHTML = `body::before { background-image: url(${savedBg}) !important; }`;
+    }
+}
+function handleBgUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const MAX_SIZE = 1920;
+            if (width > MAX_SIZE || height > MAX_SIZE) {
+                if (width > height) {
+                    height = Math.round((height * MAX_SIZE) / width);
+                    width = MAX_SIZE;
                 } else {
-                    const oldScrollTop = chatBox.scrollTop;
-                    const tempDiv = document.createElement('div');
-                    sortedData.forEach(msg => {
-                        const div = createMessageElement(msg);
-                        tempDiv.appendChild(div);
-                    });
-
-                    chatBox.insertBefore(tempDiv, chatBox.firstChild);
-                    chatBox.scrollTop = chatBox.scrollHeight - previousHeight + oldScrollTop;
-                }
-            } else if (isInitial) {
-                chatBox.innerHTML = '<div style="color: var(--meta-color); text-align: center; margin-top: 20px;">这个工作区暂时还没有消息，快来发一条吧~</div>';
-            }
-            isLoadingMore = false;
-        }
-
-        function handleScroll() {
-            const chatBox = document.getElementById('chat-box');
-            if (chatBox.scrollTop === 0 && !isLoadingMore && currentRoomId) {
-                isLoadingMore = true;
-                loadMessages(currentRoomId, false);
-            }
-        }
-
-        function subscribeMessages(roomId) {
-            if (currentSubscription) {
-                supabaseClient.removeChannel(currentSubscription);
-            }
-            currentSubscription = supabaseClient
-                .channel(`room:${roomId}`)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
-                    const chatBox = document.getElementById('chat-box');
-                    if (chatBox.innerHTML.includes('暂时还没有消息')) {
-                        chatBox.innerHTML = '';
-                    }
-                    appendMessage(payload.new);
-                    if (payload.new.user_name && !roomMembers.includes(payload.new.user_name)) {
-                        roomMembers.push(payload.new.user_name);
-                    }
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                })
-                .subscribe();
-        }
-
-        function setReply(msg) {
-            replyingToMessage = msg;
-            const previewBar = document.getElementById('reply-preview-bar');
-            const previewText = document.getElementById('reply-preview-text');
-            const shortContent = msg.content.length > 25 ? msg.content.substring(0, 25) + '...' : msg.content;
-            previewText.innerText = `回复 @${msg.user_name}: ${shortContent}`;
-            previewBar.classList.remove('hidden');
-            document.getElementById('message-input').focus();
-        }
-
-        function cancelReply() {
-            replyingToMessage = null;
-            document.getElementById('reply-preview-bar').classList.add('hidden');
-        }
-
-        const messageInput = document.getElementById('message-input');
-        const mentionDropdown = document.getElementById('mention-dropdown');
-
-        messageInput.addEventListener('input', function() {
-            const val = this.value;
-            const cursorPos = this.selectionStart;
-            const textBeforeCursor = val.substring(0, cursorPos);
-            const match = textBeforeCursor.match(/@([^\s@]*)$/);
-
-            if (match && roomMembers.length > 0) {
-                const keyword = match[1].toLowerCase();
-                const filteredMembers = roomMembers.filter(m => m.toLowerCase().includes(keyword));
-
-                if (filteredMembers.length > 0) {
-                    mentionDropdown.innerHTML = '';
-                    filteredMembers.forEach(member => {
-                        const opt = document.createElement('div');
-                        opt.className = 'mention-option';
-                        opt.innerText = `@${member}`;
-                        opt.onclick = () => insertMention(member);
-                        mentionDropdown.appendChild(opt);
-                    });
-                    mentionDropdown.style.display = 'block';
-                    return;
+                    width = Math.round((width * MAX_SIZE) / height);
+                    height = MAX_SIZE;
                 }
             }
-            mentionDropdown.style.display = 'none';
-        });
-
-        function insertMention(username) {
-            const val = messageInput.value;
-            const cursorPos = messageInput.selectionStart;
-            const textBeforeCursor = val.substring(0, cursorPos);
-            const textAfterCursor = val.substring(cursorPos);
-            messageInput.value = textBeforeCursor.replace(/@([^\s@]*)$/, `@${username} `) + textAfterCursor;
-            mentionDropdown.style.display = 'none';
-            messageInput.focus();
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            localStorage.setItem('local_chat_bg', compressedBase64);
+            initBackground();
+            alert('本地背景设置成功！');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+function clearBackground() {
+    localStorage.removeItem('local_chat_bg');
+    let styleTag = document.getElementById('dynamic-bg-style');
+    if (styleTag) styleTag.innerHTML = `body::before { background-image: none !important; }`;
+    alert('已清除本地背景图！');
+}
+async function checkUser() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+        showChatRoom();
+    }
+}
+async function login() {
+    const email = document.getElementById('email-input').value;
+    const password = document.getElementById('password-input').value;
+    const errorTag = document.getElementById('auth-error');
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+        errorTag.innerText = '登录失败: ' + error.message;
+    } else {
+        showChatRoom();
+    }
+}
+async function logout() {
+    await supabaseClient.auth.signOut();
+    document.getElementById('chat-section').classList.add('hidden');
+    document.getElementById('auth-section').classList.remove('hidden');
+}
+function showChatRoom() {
+    document.getElementById('auth-section').classList.add('hidden');
+    document.getElementById('chat-section').classList.remove('hidden');
+    loadRooms();
+}
+async function loadRooms() {
+    const { data: rooms, error } = await supabaseClient.from('rooms').select('*').order('id');
+    if (error) { console.error(error); return; }
+    const container = document.getElementById('rooms-container');
+    container.innerHTML = '';
+    rooms.forEach(room => {
+        const div = document.createElement('div');
+        div.className = 'room-item';
+        div.innerText = room.password ? `🔒 ${room.name}` : `💬 ${room.name}`;
+        div.onclick = (e) => selectRoom(room, e.currentTarget);
+        container.appendChild(div);
+    });
+}
+async function selectRoom(room, element) {
+    if (room.password) {
+        const inputPwd = prompt(`【${room.name}】是加密工作区，请输入访问密码：`);
+        if (inputPwd !== room.password) {
+            alert('密码错误，拒绝进入！');
+            return;
         }
-
-        document.addEventListener('click', (e) => {
-            if (e.target !== messageInput && !mentionDropdown.contains(e.target)) {
-                mentionDropdown.style.display = 'none';
+    }
+    currentRoomId = room.id;
+    oldestTimestamp = null;
+    roomMembers = [];
+    cancelReply();
+    document.getElementById('chat-box').innerHTML = '加载中...';
+    document.getElementById('current-room-title').innerText = `当前工作区：${room.name}`;
+    document.getElementById('input-area').classList.remove('hidden');
+    document.getElementById('pc-action-bar').classList.remove('hidden');
+    document.getElementById('mobile-action-bar').classList.remove('hidden');
+    document.querySelectorAll('.room-item').forEach(el => el.classList.remove('active'));
+    if (element) element.classList.add('active');
+    loadMessages(room.id, true);
+    subscribeMessages(room.id);
+    loadWorldSettings(room.id);
+    loadCharactersSettings(room.id);
+}
+async function loadMessages(roomId, isInitial = false) {
+    const chatBox = document.getElementById('chat-box');
+    let query = supabaseClient
+        .from('messages')
+        .select('*')
+        .eq('room_id', roomId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+    if (!isInitial && oldestTimestamp) {
+        query = query.lt('created_at', oldestTimestamp);
+    }
+    const { data, error } = await query;
+    if (isInitial) {
+        chatBox.innerHTML = '';
+    }
+    if (!error && data && data.length > 0) {
+        const sortedData = data.reverse();
+        oldestTimestamp = sortedData[0].created_at;
+        sortedData.forEach(msg => {
+            if (msg.user_name && !roomMembers.includes(msg.user_name)) {
+                roomMembers.push(msg.user_name);
             }
         });
-
-        async function sendMessage() {
-            let content = messageInput.value;
-            if (!content.trim() || !currentRoomId) return;
-
-            if (replyingToMessage) {
-                const quote = `> @${replyingToMessage.user_name}: ${replyingToMessage.content.replace(/\n/g, ' ')}\n\n`;
-                content = quote + content;
-            }
-
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            const username = user.email.split('@')[0];
-
-            const { error } = await supabaseClient
-                .from('messages')
-                .insert([{ user_name: username, content: content, room_id: currentRoomId }]);
-
-            if (!error) {
-                messageInput.value = '';
-                cancelReply();
-                mentionDropdown.style.display = 'none';
-            } else {
-                alert('发送失败: ' + error.message);
-            }
-        }
-
-        function openWorldDrawer() {
-            document.getElementById('world-drawer').classList.add('open');
-        }
-        function openCharDrawer() {
-            document.getElementById('char-drawer').classList.add('open');
-        }
-        function closeDrawers() {
-            document.getElementById('world-drawer').classList.remove('open');
-            document.getElementById('char-drawer').classList.remove('open');
-        }
-
-        async function loadWorldSettings(roomId) {
-            const { data } = await supabaseClient.from('novel_settings').select('*').eq('room_id', roomId).maybeSingle();
-            if (data) {
-                document.getElementById('world-background').value = data.world_bg || '';
-                document.getElementById('world-rules').value = data.world_rules || '';
-                document.getElementById('world-geography').value = data.world_geo || '';
-            } else {
-                document.getElementById('world-background').value = '';
-                document.getElementById('world-rules').value = '';
-                document.getElementById('world-geography').value = '';
-            }
-        }
-
-        async function saveWorldSettings() {
-            if (!currentRoomId) return;
-            const world_bg = document.getElementById('world-background').value;
-            const world_rules = document.getElementById('world-rules').value;
-            const world_geo = document.getElementById('world-geography').value;
-
-            const { data: existing } = await supabaseClient.from('novel_settings').select('id').eq('room_id', currentRoomId).maybeSingle();
-
-            let error;
-            if (existing) {
-                const res = await supabaseClient.from('novel_settings').update({
-                    world_bg, world_rules, world_geo, updated_at: new Date()
-                }).eq('room_id', currentRoomId);
-                error = res.error;
-            } else {
-                const res = await supabaseClient.from('novel_settings').insert([{
-                    room_id: currentRoomId, world_bg, world_rules, world_geo
-                }]);
-                error = res.error;
-            }
-
-            if (!error) {
-                alert('本工作区世界观修改已同步至云端！');
-            } else {
-                alert('保存失败: ' + error.message);
-            }
-        }
-
-        async function loadCharactersSettings(roomId) {
-            const { data } = await supabaseClient.from('novel_characters').select('*').eq('room_id', roomId).order('id');
-            charactersData = (data && data.length > 0) ? data : [];
-            activeCharIndex = 0;
-            renderCharacterTabs();
-            renderActiveCharacterCard();
-        }
-
-        function renderCharacterTabs() {
-            const container = document.getElementById('char-tabs-container');
-            container.innerHTML = '';
-            charactersData.forEach((char, index) => {
-                const tab = document.createElement('div');
-                tab.className = `browser-tab ${index === activeCharIndex ? 'active' : ''}`;
-                tab.innerHTML = `<span>${char.name || '未命名'}</span>`;
-                tab.onclick = () => { activeCharIndex = index; renderCharacterTabs(); renderActiveCharacterCard(); };
-                container.appendChild(tab);
+        const previousHeight = chatBox.scrollHeight;
+        if (isInitial) {
+            sortedData.forEach(msg => appendMessage(msg));
+            chatBox.scrollTop = chatBox.scrollHeight;
+        } else {
+            const oldScrollTop = chatBox.scrollTop;
+            const tempDiv = document.createElement('div');
+            sortedData.forEach(msg => {
+                const div = createMessageElement(msg);
+                tempDiv.appendChild(div);
             });
-            const addBtn = document.createElement('button');
-            addBtn.className = 'browser-tab-add';
-            addBtn.innerText = '＋';
-            addBtn.onclick = addNewCharacterCard;
-            container.appendChild(addBtn);
+            chatBox.insertBefore(tempDiv, chatBox.firstChild);
+            chatBox.scrollTop = chatBox.scrollHeight - previousHeight + oldScrollTop;
         }
-
-        function renderActiveCharacterCard() {
-            const container = document.getElementById('char-content-container');
-            if (charactersData.length === 0) {
-                container.innerHTML = '<p style="text-align:center; color:var(--meta-color);">本工作区暂无角色，请点击上方“＋ 新增角色”</p>';
-                return;
+    } else if (isInitial) {
+        chatBox.innerHTML = '<div style="color: var(--meta-color); text-align: center; margin-top: 20px;">这个工作区暂时还没有消息，快来发一条吧~</div>';
+    }
+    isLoadingMore = false;
+}
+function handleScroll() {
+    const chatBox = document.getElementById('chat-box');
+    if (chatBox.scrollTop === 0 && !isLoadingMore && currentRoomId) {
+        isLoadingMore = true;
+        loadMessages(currentRoomId, false);
+    }
+}
+function subscribeMessages(roomId) {
+    if (currentSubscription) {
+        supabaseClient.removeChannel(currentSubscription);
+    }
+    currentSubscription = supabaseClient
+        .channel(`room:${roomId}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
+            const chatBox = document.getElementById('chat-box');
+            if (chatBox.innerHTML.includes('暂时还没有消息')) {
+                chatBox.innerHTML = '';
             }
-            const char = charactersData[activeCharIndex];
-            container.innerHTML = `
-                <div class="character-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="margin: 0;">📇 角色卡详情</h4>
-                        <button onclick="deleteCurrentCharacter(${char.id})" style="background:#ff4d4f; color:#fff; border:none; padding:3px 8px; border-radius:3px; font-size:11px; cursor:pointer;">删除此角色</button>
-                    </div>
-                    <div class="character-card-grid">
-                        <div class="character-field">
-                            <label>角色姓名</label>
-                            <input type="text" value="${escapeHtml(char.name || '')}" oninput="updateCharField('name', this.value)" />
-                        </div>
-                        <div class="character-field">
-                            <label>身份 / 定位</label>
-                            <input type="text" value="${escapeHtml(char.identity || '')}" oninput="updateCharField('identity', this.value)" />
-                        </div>
-                        <div class="character-field">
-                            <label>所属阵营 / 势力</label>
-                            <input type="text" value="${escapeHtml(char.faction || '')}" oninput="updateCharField('faction', this.value)" />
-                        </div>
-                        <div class="character-field">
-                            <label>身高</label>
-                            <input type="text" placeholder="例如: 180cm" value="${escapeHtml(char.height || '')}" oninput="updateCharField('height', this.value)" />
-                        </div>
-                        <div class="character-field">
-                            <label>体重</label>
-                            <input type="text" placeholder="例如: 65kg" value="${escapeHtml(char.weight || '')}" oninput="updateCharField('weight', this.value)" />
-                        </div>
-                    </div>
-                    <div class="character-field" style="margin-bottom: 8px;">
-                        <label>性格特征</label>
-                        <input type="text" value="${escapeHtml(char.personality || '')}" oninput="updateCharField('personality', this.value)" />
-                    </div>
-                    <div class="character-field" style="margin-bottom: 8px;">
-                        <label>外貌特征 / 穿搭</label>
-                        <textarea rows="2" oninput="updateCharField('appearance', this.value)">${escapeHtml(char.appearance || '')}</textarea>
-                    </div>
-                    <div class="character-field" style="margin-bottom: 12px;">
-                        <label>背景故事与经历</label>
-                        <textarea rows="3" oninput="updateCharField('background', this.value)">${escapeHtml(char.background || '')}</textarea>
-                    </div>
-                    <button onclick="saveCharacterCard()" style="width: 100%;">同步保存当前角色卡</button>
+            appendMessage(payload.new);
+            if (payload.new.user_name && !roomMembers.includes(payload.new.user_name)) {
+                roomMembers.push(payload.new.user_name);
+            }
+            chatBox.scrollTop = chatBox.scrollHeight;
+        })
+        .subscribe();
+}
+function createMessageElement(msg) {
+    const div = document.createElement('div');
+    div.className = 'message';
+    const dateStr = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let formattedContent = escapeHtml(msg.content);
+    formattedContent = formattedContent.replace(/&gt; @([^\s:]+): (.*?)(?(\n)|$)/g, '<blockquote style="margin: 4px 0; padding: 2px 6px; border-left: 2px solid var(--room-active); background: var(--room-bg); font-size: 11px; color: var(--meta-color);">@$1: $2</blockquote>');
+    formattedContent = formattedContent.replace(/@([^\s@]+)/g, '<span class="mention">@$1</span>');
+    div.innerHTML = `
+        <div><span>${escapeHtml(msg.user_name)}</span> <span style="font-size: 10px; color: var(--meta-color);">${dateStr}</span>
+        <button class="reply-btn" onclick='setReply(${JSON.stringify(msg)})'>回复</button></div>
+        <div style="margin-top: 4px; word-break: break-all; white-space: pre-wrap;">${formattedContent}</div>
+    `;
+    return div;
+}
+function appendMessage(msg) {
+    const chatBox = document.getElementById('chat-box');
+    const div = createMessageElement(msg);
+    chatBox.appendChild(div);
+}
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+function setReply(msg) {
+    replyingToMessage = msg;
+    const previewBar = document.getElementById('reply-preview-bar');
+    const previewText = document.getElementById('reply-preview-text');
+    const shortContent = msg.content.length > 25 ? msg.content.substring(0, 25) + '...' : msg.content;
+    previewText.innerText = `回复 @${msg.user_name}: ${shortContent}`;
+    previewBar.classList.remove('hidden');
+    document.getElementById('message-input').focus();
+}
+function cancelReply() {
+    replyingToMessage = null;
+    document.getElementById('reply-preview-bar').classList.add('hidden');
+}
+const messageInput = document.getElementById('message-input');
+const mentionDropdown = document.getElementById('mention-dropdown');
+messageInput.addEventListener('input', function() {
+    const val = this.value;
+    const cursorPos = this.selectionStart;
+    const textBeforeCursor = val.substring(0, cursorPos);
+    const match = textBeforeCursor.match(/@([^\s@]*)$/);
+    if (match && roomMembers.length > 0) {
+        const keyword = match[1].toLowerCase();
+        const filteredMembers = roomMembers.filter(m => m.toLowerCase().includes(keyword));
+        if (filteredMembers.length > 0) {
+            mentionDropdown.innerHTML = '';
+            filteredMembers.forEach(member => {
+                const opt = document.createElement('div');
+                opt.className = 'mention-option';
+                opt.innerText = `@${member}`;
+                opt.onclick = () => insertMention(member);
+                mentionDropdown.appendChild(opt);
+            });
+            mentionDropdown.style.display = 'block';
+            return;
+        }
+    }
+    mentionDropdown.style.display = 'none';
+});
+function insertMention(username) {
+    const val = messageInput.value;
+    const cursorPos = messageInput.selectionStart;
+    const textBeforeCursor = val.substring(0, cursorPos);
+    const textAfterCursor = val.substring(cursorPos);
+    messageInput.value = textBeforeCursor.replace(/@([^\s@]*)$/, `@${username} `) + textAfterCursor;
+    mentionDropdown.style.display = 'none';
+    messageInput.focus();
+}
+document.addEventListener('click', (e) => {
+    if (e.target !== messageInput && !mentionDropdown.contains(e.target)) {
+        mentionDropdown.style.display = 'none';
+    }
+});
+async function sendMessage() {
+    let content = messageInput.value;
+    if (!content.trim() || !currentRoomId) return;
+    if (replyingToMessage) {
+        const quote = `> @${replyingToMessage.user_name}: ${replyingToMessage.content.replace(/\n/g, ' ')}\n\n`;
+        content = quote + content;
+    }
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    const username = user.email.split('@')[0];
+    const { error } = await supabaseClient
+        .from('messages')
+        .insert([{ user_name: username, content: content, room_id: currentRoomId }]);
+    if (!error) {
+        messageInput.value = '';
+        cancelReply();
+        mentionDropdown.style.display = 'none';
+    } else {
+        alert('发送失败: ' + error.message);
+    }
+}
+function openWorldDrawer() { document.getElementById('world-drawer').classList.add('open'); }
+function openCharDrawer() { document.getElementById('char-drawer').classList.add('open'); }
+function closeDrawers() {
+    document.getElementById('world-drawer').classList.remove('open');
+    document.getElementById('char-drawer').classList.remove('open');
+}
+async function loadWorldSettings(roomId) {
+    const { data } = await supabaseClient.from('room_worlds').select('*').eq('room_id', roomId).single();
+    if (data) {
+        document.getElementById('world-background').value = data.background || '';
+        document.getElementById('world-rules').value = data.rules || '';
+        document.getElementById('world-geography').value = data.geography || '';
+    } else {
+        document.getElementById('world-background').value = '';
+        document.getElementById('world-rules').value = '';
+        document.getElementById('world-geography').value = '';
+    }
+}
+async function saveWorldSettings() {
+    if (!currentRoomId) return;
+    const background = document.getElementById('world-background').value;
+    const rules = document.getElementById('world-rules').value;
+    const geography = document.getElementById('world-geography').value;
+    const { data: existing } = await supabaseClient.from('room_worlds').select('room_id').eq('room_id', currentRoomId).single();
+    let error;
+    if (existing) {
+        const res = await supabaseClient.from('room_worlds').update({ background, rules, geography }).eq('room_id', currentRoomId);
+        error = res.error;
+    } else {
+        const res = await supabaseClient.from('room_worlds').insert([{ room_id: currentRoomId, background, rules, geography }]);
+        error = res.error;
+    }
+    if (!error) {
+        alert('当前工作区世界观保存成功！');
+    } else {
+        alert('保存失败: ' + error.message);
+    }
+}
+async function loadCharactersSettings(roomId) {
+    const { data } = await supabaseClient.from('room_characters').select('*').eq('room_id', roomId).single();
+    if (data && data.characters) {
+        try {
+            charactersData = JSON.parse(data.characters);
+        } catch(e) {
+            charactersData = [];
+        }
+    } else {
+        charactersData = [];
+    }
+    if (charactersData.length === 0) {
+        charactersData.push({ name: '新角色', identity: '', appearance: '', personality: '', ability: '', background: '' });
+    }
+    activeCharIndex = 0;
+    renderCharacterTabs();
+}
+function renderCharacterTabs() {
+    const tabsContainer = document.getElementById('char-tabs-container');
+    tabsContainer.innerHTML = '<button class="browser-tab-add" onclick="addNewCharacterCard()">＋ 新增角色</button>';
+    charactersData.forEach((char, index) => {
+        const tab = document.createElement('div');
+        tab.className = `browser-tab ${index === activeCharIndex ? 'active' : ''}`;
+        tab.innerHTML = `<span>${escapeHtml(char.name || '未命名')}</span> <span onclick="event.stopPropagation(); removeCharacterCard(${index})" style="cursor:pointer; font-size:11px; margin-left:4px;">×</span>`;
+        tab.onclick = () => { saveCurrentCharFormToMemory(); activeCharIndex = index; renderCharacterTabs(); };
+        tabsContainer.appendChild(tab);
+    });
+    renderCharacterForm();
+}
+function renderCharacterForm() {
+    const container = document.getElementById('char-content-container');
+    if (charactersData.length === 0) {
+        container.innerHTML = '<p style="font-size:12px; color:var(--meta-color);">暂无角色，请点击上方“新增角色”。</p>';
+        return;
+    }
+    const c = charactersData[activeCharIndex] || charactersData[0];
+    container.innerHTML = `
+        <div class="character-card">
+            <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="margin: 0;">👤 角色详细档案</h4>
+                <button onclick="saveCharactersSettings()" style="font-size: 11px; padding: 3px 8px;">保存全部角色</button>
+            </div>
+            <div class="character-card-grid">
+                <div class="character-field">
+                    <label>角色名称</label>
+                    <input type="text" id="char-name" value="${escapeHtml(c.name || '')}" oninput="updateCharField('name', this.value)" />
                 </div>
-            `;
+                <div class="character-field">
+                    <label>身份 / 职业</label>
+                    <input type="text" id="char-identity" value="${escapeHtml(c.identity || '')}" oninput="updateCharField('identity', this.value)" />
+                </div>
+            </div>
+            <div class="character-field" style="margin-bottom: 8px;">
+                <label>外貌特征</label>
+                <input type="text" id="char-appearance" value="${escapeHtml(c.appearance || '')}" oninput="updateCharField('appearance', this.value)" />
+            </div>
+            <div class="character-field" style="margin-bottom: 8px;">
+                <label>性格特点</label>
+                <textarea id="char-personality" rows="2" oninput="updateCharField('personality', this.value)">${escapeHtml(c.personality || '')}</textarea>
+            </div>
+            <div class="character-field" style="margin-bottom: 8px;">
+                <label>能力 / 技能</label>
+                <textarea id="char-ability" rows="2" oninput="updateCharField('ability', this.value)">${escapeHtml(c.ability || '')}</textarea>
+            </div>
+            <div class="character-field">
+                <label>背景故事</label>
+                <textarea id="char-background" rows="3" oninput="updateCharField('background', this.value)">${escapeHtml(c.background || '')}</textarea>
+            </div>
+        </div>
+    `;
+}
+function updateCharField(field, val) {
+    if (charactersData[activeCharIndex]) {
+        charactersData[activeCharIndex][field] = val;
+        if (field === 'name') {
+            const tabs = document.querySelectorAll('.browser-tab span:first-child');
+            if (tabs[activeCharIndex]) tabs[activeCharIndex].innerText = val || '未命名';
         }
-
-        function updateCharField(field, value) {
-            charactersData[activeCharIndex][field] = value;
-            if (field === 'name') {
-                const tabs = document.querySelectorAll('.browser-tab span');
-                if (tabs[activeCharIndex]) tabs[activeCharIndex].innerText = value || '未命名';
-            }
-        }
-
-        async function addNewCharacterCard() {
-            if (!currentRoomId) return;
-            const newChar = { room_id: currentRoomId, name: '新角色', faction: '', identity: '', height: '', weight: '', personality: '', appearance: '', background: '' };
-            const { data, error } = await supabaseClient.from('novel_characters').insert([newChar]).select().single();
-            if (!error && data) {
-                charactersData.push(data);
-                activeCharIndex = charactersData.length - 1;
-                renderCharacterTabs();
-                renderActiveCharacterCard();
-            } else {
-                alert('新增角色失败: ' + (error ? error.message : '未知错误'));
-            }
-        }
-
-        async function saveCharacterCard() {
-            const char = charactersData[activeCharIndex];
-            const { error } = await supabaseClient.from('novel_characters').upsert({
-                id: char.id,
-                room_id: currentRoomId,
-                name: char.name,
-                faction: char.faction,
-                identity: char.identity,
-                height: char.height,
-                weight: char.weight,
-                personality: char.personality,
-                appearance: char.appearance,
-                background: char.background
-            });
-            if (!error) {
-                alert(`角色【${char.name}】设定已成功同步至云端！`);
-            } else {
-                alert('保存角色失败: ' + error.message);
-            }
-        }
-
-        async function deleteCurrentCharacter(id) {
-            if (!confirm('确定要删除该角色档案吗？')) return;
-            const { error } = await supabaseClient.from('novel_characters').delete().eq('id', id);
-            if (!error) {
-                charactersData.splice(activeCharIndex, 1);
-                activeCharIndex = Math.max(0, activeCharIndex - 1);
-                renderCharacterTabs();
-                renderActiveCharacterCard();
-                alert('角色已删除');
-            } else {
-                alert('删除失败: ' + error.message);
-            }
-        }
-
-        async function updatePassword() {
-            const newPassword = document.getElementById('new-password-input').value;
-            if (!newPassword || newPassword.length < 6) {
-                alert('密码长度不能少于 6 位！');
-                return;
-            }
-            const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
-            if (!error) {
-                alert('密码修改成功！');
-                document.getElementById('new-password-input').value = '';
-            } else {
-                alert('修改密码失败: ' + error.message);
-            }
-        }
-
-        function createMessageElement(msg) {
-            const div = document.createElement('div');
-            div.className = 'message';
-            
-            let safeContent = escapeHtml(msg.content);
-            safeContent = safeContent.replace(/^&gt; (.*)$/gm, '<blockquote style="margin: 0 0 5px 0; padding-left: 8px; border-left: 2px solid var(--room-active); color: var(--meta-color); font-size: 12px;">$1</blockquote>');
-            safeContent = safeContent.replace(/@([a-zA-Z0-9_\u4e00-\u9fa5]+)/g, '<span class="mention">@$1</span>');
-
-            div.innerHTML = `
-                <button class="reply-btn" onclick='setReply(${JSON.stringify(msg).replace(/'/g, "&#39;")})'>回复</button>
-                <span>${escapeHtml(msg.user_name)}:</span> 
-                <div style="margin-top: 4px;">${safeContent}</div>
-            `;
-            return div;
-        }
-
-        function appendMessage(msg) {
-            const chatBox = document.getElementById('chat-box');
-            const div = createMessageElement(msg);
-            chatBox.appendChild(div);
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-    </script>
+    }
+}
+function saveCurrentCharFormToMemory() {
+    const nameEl = document.getElementById('char-name');
+    if (!nameEl) return;
+    charactersData[activeCharIndex] = {
+        name: document.getElementById('char-name').value,
+        identity: document.getElementById('char-identity').value,
+        appearance: document.getElementById('char-appearance').value,
+        personality: document.getElementById('char-personality').value,
+        ability: document.getElementById('char-ability').value,
+        background: document.getElementById('char-background').value
+    };
+}
+function addNewCharacterCard() {
+    saveCurrentCharFormToMemory();
+    charactersData.push({ name: '新角色', identity: '', appearance: '', personality: '', ability: '', background: '' });
+    activeCharIndex = charactersData.length - 1;
+    renderCharacterTabs();
+}
+function removeCharacterCard(index) {
+    if (charactersData.length <= 1) {
+        alert('至少需要保留一个角色！');
+        return;
+    }
+    charactersData.splice(index, 1);
+    if (activeCharIndex >= charactersData.length) {
+        activeCharIndex = charactersData.length - 1;
+    }
+    renderCharacterTabs();
+}
+async function saveCharactersSettings() {
+    saveCurrentCharFormToMemory();
+    if (!currentRoomId) return;
+    const jsonStr = JSON.stringify(charactersData);
+    const { data: existing } = await supabaseClient.from('room_characters').select('room_id').eq('room_id', currentRoomId).single();
+    let error;
+    if (existing) {
+        const res = await supabaseClient.from('room_characters').update({ characters: jsonStr }).eq('room_id', currentRoomId);
+        error = res.error;
+    } else {
+        const res = await supabaseClient.from('room_characters').insert([{ room_id: currentRoomId, characters: jsonStr }]);
+        error = res.error;
+    }
+    if (!error) {
+        alert('当前工作区角色档案保存成功！');
+    } else {
+        alert('保存失败: ' + error.message);
+    }
+}
+async function updatePassword() {
+    const newPassword = document.getElementById('new-password-input').value;
+    if (!newPassword || newPassword.length < 6) {
+        alert('新密码长度不能少于6位！');
+        return;
+    }
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    if (error) {
+        alert('密码修改失败: ' + error.message);
+    } else {
+        alert('密码修改成功！');
+        document.getElementById('new-password-input').value = '';
+    }
+}
+</script>
 </body>
 </html>
