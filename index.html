@@ -115,7 +115,6 @@
             -webkit-backdrop-filter: blur(6px);
         }
 
-        /* 1. 密码输入框与文本输入框规格完全同等对齐 */
         input[type="text"], input[type="password"], input[type="email"], textarea, select {
             background-color: var(--input-bg);
             color: var(--input-text);
@@ -149,7 +148,6 @@
 
         .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; gap: 10px; }
 
-        /* 2. 白色格式的全局按钮调整为 3% 透明度 */
         button, .global-actions button, .top-bar-right button {
             background-color: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border-color);
@@ -162,23 +160,12 @@
             background-color: rgba(255, 255, 255, 0.08);
         }
 
-        /* 桌面端专属悬浮按钮区 */
-        .side-action-bar {
-            position: absolute;
-            right: -40px;
-            top: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            z-index: 5;
-        }
-
-        /* 3. 世界观与角色设定按钮本体适当增加透明度，避免过高影响观感 */
+        /* 统一桌面端与移动端的圆形操作按钮（PC右侧悬浮 / 移动端顶部集成） */
         .circle-btn {
-            width: 30px;
-            height: 30px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
-            background: color-mix(in srgb, var(--room-active) 80%, transparent); /* 约20%透明度兼顾主题色与微透 */
+            background: color-mix(in srgb, var(--room-active) 80%, transparent);
             color: #ffffff;
             border: 1px solid rgba(255, 255, 255, 0.2);
             display: flex;
@@ -187,20 +174,20 @@
             cursor: pointer;
             box-shadow: 0 2px 5px rgba(0,0,0,0.15);
             transition: transform 0.2s, background-color 0.2s;
-            font-size: 13px;
+            font-size: 14px;
             position: relative;
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
         }
         .circle-btn:hover { 
             transform: scale(1.1); 
-            background: var(--room-active); /* 悬停时恢复实色强化交互 */
+            background: var(--room-active); 
             filter: brightness(1.1); 
         }
         .circle-btn::after {
             content: attr(data-tooltip);
             position: absolute;
-            right: 38px;
+            right: 42px;
             background: rgba(0,0,0,0.8);
             color: #fff;
             padding: 3px 6px;
@@ -213,12 +200,34 @@
         }
         .circle-btn:hover::after { opacity: 1; }
 
-        /* 移动端专属顶部操作栏区域 */
-        #mobile-action-bar {
-            display: none;
+        /* 桌面端专属悬浮按钮区 */
+        .side-action-bar {
+            position: absolute;
+            right: -45px;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 5;
         }
 
-        /* 侧边抽屉面板 */
+        /* 移动端专属顶部操作栏区域统一为列向或行向排布 */
+        .top-bar-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .global-actions { display: flex; gap: 6px; }
+        
+        /* 移动端操作栏容器：让世界观与角色设定按钮与PC端保持完全一样的视觉触感 */
+        #mobile-action-bar {
+            display: none;
+            gap: 8px;
+        }
+
+        /* 侧边抽屉面板：PC与移动端统一样式 */
         .setting-drawer {
             position: fixed;
             top: 0; right: -100%;
@@ -306,14 +315,12 @@
             #pc-action-bar { display: none !important; }
             
             .top-bar-right {
-                display: flex;
-                flex-direction: column;
                 align-items: flex-end;
                 gap: 6px;
             }
 
-            .global-actions { display: flex; gap: 6px; }
-            #mobile-action-bar { display: flex; gap: 8px; }
+            /* 移动端顶栏显现独立且风格一致的操作按钮组 */
+            #mobile-action-bar { display: flex; }
             
             .setting-drawer { width: 100%; max-width: 100vw; }
             .character-card-grid { grid-template-columns: 1fr; }
@@ -341,9 +348,10 @@
                     <button onclick="toggleTheme()" style="font-size: 12px; padding: 6px 10px;">🌓 主题</button>
                     <button onclick="logout()" style="font-size: 12px; padding: 6px 10px;">退出</button>
                 </div>
+                <!-- 移动端同步渲染的圆形按钮组，样式与PC端悬浮球完全一致 -->
                 <div id="mobile-action-bar" class="hidden">
-                    <button class="circle-btn" onclick="openWorldDrawer()">🌍</button>
-                    <button class="circle-btn" onclick="openCharDrawer()">👥</button>
+                    <button class="circle-btn" data-tooltip="世界观设定" onclick="openWorldDrawer()">🌍</button>
+                    <button class="circle-btn" data-tooltip="角色设定" onclick="openCharDrawer()">👥</button>
                 </div>
             </div>
         </div>
@@ -360,7 +368,7 @@
                     <button class="circle-btn" data-tooltip="角色设定" onclick="openCharDrawer()">👥</button>
                 </div>
 
-                <div id="chat-box" onscroll="handleScroll()">请先在左侧选择一个工作区</div>
+                <div id="chat-box" onscroll="handleScroll()">请选择工作区</div>
                 
                 <div id="mention-dropdown"></div>
 
